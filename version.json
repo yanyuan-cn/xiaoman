@@ -1,7 +1,7 @@
 {
   "versionCode": 9,
   "versionName": "0.7.1",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v0.7.1/app-release.apk",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v0.7.0/app-release.apk",
   "sha256": "E05A92F2A919D7CFB941D541D509554A10E26DADA14503DD14D5BDA8A7612918",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
   "notes": "新增转账、账单详情、编辑流水、分类管理，支持支付宝和微信账单导入"
