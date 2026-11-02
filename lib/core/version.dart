@@ -1,11 +1,22 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '0.6.0';
-const int kAppBuild = 6;
+const String kAppVersion = '1.0.0';
+const int kAppBuild = 10;
 
-/// 更新清单地址（放在仓库根目录的 version.json）
-const String kUpdateManifestUrl =
-    'https://raw.githubusercontent.com/yanyuan-cn/xiaoman/main/version.json';
+/// 更新清单地址，按顺序尝试，第一个成功的就用。
+/// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
+const List<String> kUpdateManifestUrls = <String>[
+  'https://raw.gitmirror.com/yanyuan-cn/xiaoman/main/version.json',
+  'https://ghproxy.net/https://raw.githubusercontent.com/yanyuan-cn/xiaoman/main/version.json',
+  'https://cdn.jsdelivr.net/gh/yanyuan-cn/xiaoman@main/version.json',
+  'https://raw.githubusercontent.com/yanyuan-cn/xiaoman/main/version.json',
+];
+
+/// APK 下载地址的镜像前缀，配置里的地址会依次套用
+const List<String> kApkMirrorPrefixes = <String>[
+  '',
+  'https://ghproxy.net/',
+];
 
 /// 发布页地址（检查更新里「去下载」的落点）
 const String kReleasePageUrl =
@@ -14,22 +25,30 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+1.0.0
+· 资产：账户详情页，可改名、改类型、改余额、设为定期/活期
+· 资产：新增账户，支持「是否计入总资产」
+· 负债：负债分区、贷款项目、净资产 = 资产 − 负债
+· 存储：启动清理更新残留、存储占用可视化与一键清理
+· 流畅度：启动申请最高刷新率
+
+0.7.1
+· 应用内更新联调版本（功能与 0.7.0 相同）
+
+0.7.0
+· 转账：账户之间转钱，资产自动同步
+· 编辑已有流水：点开详情页右上角编辑
+· 账单详情：分类、账户、精确时间、商户、订单号、备注、来源
+· 分类管理：新建 / 重命名 / 隐藏一级与二级分类
+· 自动识别编码：UTF-8 / GBK / UTF-16
+· 支持支付宝账单、微信账单导入
+
+0.6.1
+· 更新检查多源回退，国内网络可用
+
 0.6.0
-· 应用内更新：下载 APK、校验 SHA-256、调起系统安装
-· 更新失败自动回退到网页下载
+· 应用内更新：下载 APK、校验、调起安装
 
 0.5.0
-· 底部导航：首页 / 资产 / 统计 / 我的
-· 资产页：每个账户的本期余额与总资产
-· 统计页：月度分类占比、近 6 个月趋势
-· 我的：导入导出、检查更新、更新日志
-
-0.4.0
-· 账单导入：从其他记账 App 的 CSV 迁移
-· 按批次记录，可整批撤销
-· 三级去重（订单号 / 指纹 / 疑似重复）
-
-0.2.0
-· 手动记账、流水列表、月度汇总
-· 长按删除并撤销
+· 底部导航、资产、统计、我的
 ''';

@@ -1,10 +1,10 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/money.dart';
+import '../../data/import/decode.dart';
 import '../../data/import/draft.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
@@ -24,7 +24,7 @@ class _ImportPageState extends State<ImportPage> {
   bool _busy = false;
   String? _error;
   String? _fileName;
-  MigrationParse? _parse;
+  ImportParse? _parse;
   Map<String, int?> _accountMap = <String, int?>{};
   ImportResult? _result;
 
@@ -124,15 +124,13 @@ class _ImportPageState extends State<ImportPage> {
       final PlatformFile file = files.first;
       final Uint8List bytes = await file.readAsBytes();
 
-      String text = utf8.decode(bytes, allowMalformed: true);
-      if (text.startsWith('\uFEFF')) text = text.substring(1);
+      final String text = decodeText(bytes);
 
-      final MigrationParse? parsed = parseMigrationCsv(text);
+      final ImportParse? parsed = parseAny(text);
       if (parsed == null) {
         setState(() {
           _busy = false;
-          _error = '认不出这个文件。需要包含「日期」「金额」「收支类型」这些列，'
-              '并且是 UTF-8 编码的 CSV。';
+          _error = '认不出这个文件。支持支付宝账单、微信账单、其他记账 App 导出的 CSV。';
         });
         return;
       }
@@ -158,7 +156,7 @@ class _ImportPageState extends State<ImportPage> {
   }
 
   Future<void> _runImport() async {
-    final MigrationParse? parsed = _parse;
+    final ImportParse? parsed = _parse;
     if (parsed == null) return;
 
     final List<ImportItem> items = <ImportItem>[];
@@ -172,6 +170,8 @@ class _ImportPageState extends State<ImportPage> {
         accountId: accId,
         categoryId: _matchCategory(d),
         note: d.note,
+        merchant: d.merchant,
+        externalId: d.externalId,
       ));
     }
     if (items.isEmpty) {
@@ -183,9 +183,12 @@ class _ImportPageState extends State<ImportPage> {
       _busy = true;
       _error = null;
     });
+    final String source = parsed.format == ImportFormat.alipay
+        ? 'alipay'
+        : (parsed.format == ImportFormat.wechat ? 'wechat' : 'migration');
     final ImportResult r = await widget.repo.importItems(
       items,
-      source: 'migration',
+      source: source,
       fileName: _fileName,
     );
     if (!mounted) return;
@@ -216,13 +219,15 @@ class _ImportPageState extends State<ImportPage> {
         const Icon(Icons.upload_file, size: 64, color: Colors.black26),
         const SizedBox(height: 16),
         const Text(
-          '从其他记账 App 迁移',
+          '导入账单',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
         const Text(
-          '在你原来的 App 里导出账单为 CSV，然后在这里选中它。\n'
-          '文件里需要有「日期」「金额」「收支类型」这几列。',
+          '支持三种来源，选文件后自动识别：\n'
+          '· 支付宝账单（CSV）\n'
+          '· 微信账单（解压后的 CSV）\n'
+          '· 其他记账 App 导出的 CSV',
           style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.6),
         ),
         const SizedBox(height: 24),
@@ -240,7 +245,7 @@ class _ImportPageState extends State<ImportPage> {
   }
 
   Widget _previewView() {
-    final MigrationParse p = _parse!;
+    final ImportParse p = _parse!;
     final bool ready = _accounts.isNotEmpty &&
         _accountMap.values.every((int? v) => v != null);
 
@@ -261,6 +266,10 @@ class _ImportPageState extends State<ImportPage> {
                   children: <Widget>[
                     Text(_fileName ?? '未命名文件',
                         style: const TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Text('识别为：${p.formatLabel}',
+                        style: const TextStyle(
+                            fontSize: 11, color: Color(0xFF3F7D58))),
                     const SizedBox(height: 6),
                     Text(
                       '共 ${p.total} 行 · 可导入 ${p.rows.length} 行'

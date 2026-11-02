@@ -1,8 +1,8 @@
 {
-  "versionCode": 9,
-  "versionName": "0.7.1",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v0.7.1/app-release.apk",
-  "sha256": "E05A92F2A919D7CFB941D541D509554A10E26DADA14503DD14D5BDA8A7612918",
+  "versionCode": 10,
+  "versionName": "1.0.0",
+  "apkUrl": "",
+  "sha256": "",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "新增转账、账单详情、编辑流水、分类管理，支持支付宝和微信账单导入"
+  "notes": "资产：账户详情、定期/活期、新增账户、是否计入总资产\n负债：负债分区与净资产\n存储：清理更新残留、存储占用可视化\n流畅度：申请最高刷新率"
 }

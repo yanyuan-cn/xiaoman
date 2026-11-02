@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'core/display.dart';
+import 'core/storage.dart';
 import 'data/db.dart';
 import 'data/repo.dart';
 import 'features/home/root_page.dart';
@@ -8,6 +10,8 @@ import 'features/home/root_page.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final Repo repo = Repo(await openLedgerDb());
+  await cleanUpdateCache();
+  await applyHighRefreshRate();
   runApp(XiaomanApp(repo: repo));
 }
 

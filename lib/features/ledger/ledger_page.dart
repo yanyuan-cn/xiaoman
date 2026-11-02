@@ -6,6 +6,7 @@ import '../../data/models.dart';
 import '../../data/repo.dart';
 import '../../state/data_bus.dart';
 import '../../state/ledger.dart';
+import '../detail/txn_detail_page.dart';
 import '../import/import_page.dart';
 import '../record/record_page.dart';
 
@@ -45,6 +46,16 @@ class _LedgerPageState extends State<LedgerPage> {
       ),
     );
     DataBus.instance.bump();
+  }
+
+  Future<void> _openDetail(Txn t) async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (BuildContext _) =>
+            TxnDetailPage(repo: widget.repo, txn: t),
+      ),
+    );
+    if (mounted) DataBus.instance.bump();
   }
 
   Future<void> _onDelete(Txn t) async {
@@ -254,13 +265,34 @@ class _LedgerPageState extends State<LedgerPage> {
   Widget _row(Txn t, Map<int, Account> acc, Map<int, TxnCategory> cat) {
     final TxnCategory? c = t.categoryId == null ? null : cat[t.categoryId];
     final Account? a = acc[t.accountId];
-    final String title = c?.name ?? '未分类';
-    final String sub = <String>[
-      if (a != null) a.name,
-      if ((t.note ?? '').isNotEmpty) t.note!,
-    ].join(' · ');
+    final Account? to = t.toAccountId == null ? null : acc[t.toAccountId];
+
+    String title;
+    String sub;
+    String amountText;
+    Color amountColor;
+
+    if (t.isTransfer) {
+      title = '转账';
+      sub = '${a?.name ?? '未知'} → ${to?.name ?? '未知'}';
+      if ((t.note ?? '').isNotEmpty) sub = '$sub · ${t.note}';
+      amountText = '¥${formatCents(t.amount)}';
+      amountColor = Colors.black54;
+    } else {
+      final TxnCategory? parent =
+          (c == null || c.parentId == null) ? null : cat[c.parentId!];
+      title = parent == null ? (c?.name ?? '未分类') : '${parent.name} · ${c!.name}';
+      final List<String> parts = <String>[
+        if (a != null) a.name,
+        if ((t.note ?? '').isNotEmpty) t.note!,
+      ];
+      sub = parts.isEmpty ? fmtDateTime(t.occurredAt) : parts.join(' · ');
+      amountText = '${t.isExpense ? '-' : '+'}¥${formatCents(t.amount)}';
+      amountColor = t.isExpense ? Colors.black87 : const Color(0xFF2E7D32);
+    }
 
     return InkWell(
+      onTap: () => _openDetail(t),
       onLongPress: () => _onDelete(t),
       child: Container(
         color: Colors.white,
@@ -287,11 +319,11 @@ class _LedgerPageState extends State<LedgerPage> {
             ),
             const SizedBox(width: 12),
             Text(
-              '${t.isExpense ? '-' : '+'}¥${formatCents(t.amount)}',
+              amountText,
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: t.isExpense ? Colors.black87 : const Color(0xFF2E7D32),
+                color: amountColor,
               ),
             ),
           ],

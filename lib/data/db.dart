@@ -2,7 +2,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 const String kDbName = 'xiaoman.db';
-const int kDbVersion = 1;
+const int kDbVersion = 2;
 
 Future<Database> openLedgerDb() async {
   final String path = p.join(await getDatabasesPath(), kDbName);
@@ -22,6 +22,8 @@ const List<String> _schema = <String>[
     name TEXT NOT NULL,
     type TEXT NOT NULL,
     initial_balance INTEGER NOT NULL DEFAULT 0,
+    is_liability INTEGER NOT NULL DEFAULT 0,
+    include_in_total INTEGER NOT NULL DEFAULT 1,
     sort INTEGER NOT NULL DEFAULT 0,
     archived INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL
@@ -60,6 +62,7 @@ const List<String> _schema = <String>[
       'WHERE external_id IS NOT NULL',
   'CREATE INDEX idx_txns_time ON txns(occurred_at DESC)',
   'CREATE INDEX idx_txns_dedup ON txns(dedup_hash)',
+  'CREATE INDEX idx_txns_account ON txns(account_id, occurred_at DESC)',
   '''
   CREATE TABLE import_batches(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,6 +84,21 @@ const List<String> _schema = <String>[
   )
   ''',
   '''
+  CREATE TABLE recurring_rules(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    day_of_month INTEGER NOT NULL,
+    from_account_id INTEGER NOT NULL,
+    to_account_id INTEGER,
+    category_id INTEGER,
+    note TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
+    last_run_at INTEGER,
+    created_at INTEGER NOT NULL
+  )
+  ''',
+  '''
   CREATE TABLE settings(
     key TEXT PRIMARY KEY,
     value TEXT
@@ -97,12 +115,38 @@ Future<void> _createSchema(Database db, int version) async {
   await _seed(db);
 }
 
-/// 升级入口。第一版只有 v1，后续加表都在这里按版本号补。
+/// v1 -> v2：账户增加「负债 / 计入总资产」，并预建定期扣款规则表
 Future<void> _upgrade(Database db, int oldVersion, int newVersion) async {
-  // 结构变更示例：
-  // if (oldVersion < 2) {
-  //   await db.execute('ALTER TABLE txns ADD COLUMN xxx TEXT');
-  // }
+  if (oldVersion < 2) {
+    final List<String> columns = <String>[
+      for (final Map<String, Object?> r in await db.rawQuery(
+          'PRAGMA table_info(accounts)'))
+        r['name']! as String,
+    ];
+    if (!columns.contains('is_liability')) {
+      await db.execute(
+          'ALTER TABLE accounts ADD COLUMN is_liability INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!columns.contains('include_in_total')) {
+      await db.execute(
+          'ALTER TABLE accounts ADD COLUMN include_in_total INTEGER NOT NULL DEFAULT 1');
+    }
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS recurring_rules(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        day_of_month INTEGER NOT NULL,
+        from_account_id INTEGER NOT NULL,
+        to_account_id INTEGER,
+        category_id INTEGER,
+        note TEXT,
+        active INTEGER NOT NULL DEFAULT 1,
+        last_run_at INTEGER,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+  }
 }
 
 const List<List<String>> _seedAccounts = <List<String>>[
@@ -126,7 +170,7 @@ const Map<String, List<String>> _expenseTree = <String, List<String>>{
   '其他': <String>['罚款赔偿', '理财支出', '其他支出'],
 };
 
-/// 收入一级分类（原来挤在二级里的，提升为一级）
+/// 收入一级分类
 const List<String> _incomeTop = <String>[
   '工资', '中奖', '礼金人情', '报销', '借入', '二手闲置', '补贴', '其他收入',
 ];
@@ -139,6 +183,8 @@ Future<void> _seed(Database db) async {
       'name': _seedAccounts[i][0],
       'type': _seedAccounts[i][1],
       'initial_balance': 0,
+      'is_liability': 0,
+      'include_in_total': 1,
       'sort': i,
       'archived': 0,
       'created_at': now,

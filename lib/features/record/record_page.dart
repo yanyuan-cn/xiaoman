@@ -6,21 +6,28 @@ import '../../data/models.dart';
 import '../../data/repo.dart';
 
 class RecordPage extends StatefulWidget {
-  const RecordPage({super.key, required this.repo, this.initialKind = 'expense'});
+  const RecordPage({
+    super.key,
+    required this.repo,
+    this.initialKind = 'expense',
+    this.editing,
+  });
 
   final Repo repo;
   final String initialKind;
+  final Txn? editing;
 
   @override
   State<RecordPage> createState() => _RecordPageState();
 }
 
 class _RecordPageState extends State<RecordPage> {
-  late String _kind = widget.initialKind;
+  late String _kind = widget.editing?.kind ?? widget.initialKind;
   String _amount = '';
   int? _parentId;
   int? _childId;
   int? _accountId;
+  int? _toAccountId;
   DateTime _date = DateTime.now();
   final TextEditingController _note = TextEditingController();
 
@@ -29,9 +36,20 @@ class _RecordPageState extends State<RecordPage> {
   bool _ready = false;
   bool _saving = false;
 
+  bool get _isEditing => widget.editing != null;
+  bool get _isTransfer => _kind == 'transfer';
+
   @override
   void initState() {
     super.initState();
+    final Txn? e = widget.editing;
+    if (e != null) {
+      _amount = formatCentsPlain(e.amount);
+      _date = e.occurredAt;
+      _accountId = e.accountId;
+      _toAccountId = e.toAccountId;
+      _note.text = e.note ?? '';
+    }
     _load();
   }
 
@@ -45,6 +63,22 @@ class _RecordPageState extends State<RecordPage> {
     final List<Account> accounts = await widget.repo.accounts();
     final List<TxnCategory> categories = await widget.repo.categories();
     if (!mounted) return;
+
+    final Txn? e = widget.editing;
+    if (e != null && e.categoryId != null) {
+      for (final TxnCategory c in categories) {
+        if (c.id == e.categoryId) {
+          if (c.parentId == null) {
+            _parentId = c.id;
+          } else {
+            _parentId = c.parentId;
+            _childId = c.id;
+          }
+          break;
+        }
+      }
+    }
+
     setState(() {
       _accounts = accounts;
       _categories = categories;
@@ -67,8 +101,10 @@ class _RecordPageState extends State<RecordPage> {
     if (kind == _kind) return;
     setState(() {
       _kind = kind;
-      _parentId = null;
-      _childId = null;
+      if (kind == 'transfer') {
+        _parentId = null;
+        _childId = null;
+      }
     });
   }
 
@@ -123,26 +159,62 @@ class _RecordPageState extends State<RecordPage> {
       _toast('请输入金额');
       return;
     }
-    final int? parentId = _parentId;
-    if (parentId == null) {
-      _toast('请选择分类');
-      return;
-    }
     final int? accountId = _accountId;
     if (accountId == null) {
       _toast('请选择账户');
       return;
     }
+
+    if (!_isTransfer && _parentId == null) {
+      _toast('请选择分类');
+      return;
+    }
+    if (_isTransfer) {
+      final int? to = _toAccountId;
+      if (to == null) {
+        _toast('请选择转入账户');
+        return;
+      }
+      if (to == accountId) {
+        _toast('转出和转入不能是同一个账户');
+        return;
+      }
+    }
+
     setState(() => _saving = true);
     final String note = _note.text.trim();
-    await widget.repo.addTxn(
-      kind: _kind,
-      amount: cents,
-      occurredAt: _date,
-      accountId: accountId,
-      categoryId: _childId ?? parentId,
-      note: note.isEmpty ? null : note,
-    );
+    final int? categoryId = _isTransfer ? null : (_childId ?? _parentId);
+
+    if (_isEditing) {
+      await widget.repo.updateTxn(
+        id: widget.editing!.id,
+        kind: _kind,
+        amount: cents,
+        occurredAt: _date,
+        accountId: accountId,
+        toAccountId: _isTransfer ? _toAccountId : null,
+        categoryId: categoryId,
+        note: note.isEmpty ? null : note,
+      );
+    } else if (_isTransfer) {
+      await widget.repo.addTransfer(
+        amount: cents,
+        occurredAt: _date,
+        fromAccountId: accountId,
+        toAccountId: _toAccountId!,
+        note: note.isEmpty ? null : note,
+      );
+    } else {
+      await widget.repo.addTxn(
+        kind: _kind,
+        amount: cents,
+        occurredAt: _date,
+        accountId: accountId,
+        categoryId: categoryId,
+        note: note.isEmpty ? null : note,
+      );
+    }
+
     if (!mounted) return;
     Navigator.of(context).pop(true);
   }
@@ -150,7 +222,7 @@ class _RecordPageState extends State<RecordPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('记一笔')),
+      appBar: AppBar(title: Text(_isEditing ? '编辑账单' : '记一笔')),
       body: SafeArea(
         child: Column(
           children: <Widget>[
@@ -160,6 +232,7 @@ class _RecordPageState extends State<RecordPage> {
                 segments: const <ButtonSegment<String>>[
                   ButtonSegment<String>(value: 'expense', label: Text('支出')),
                   ButtonSegment<String>(value: 'income', label: Text('收入')),
+                  ButtonSegment<String>(value: 'transfer', label: Text('转账')),
                 ],
                 selected: <String>{_kind},
                 onSelectionChanged: (Set<String> s) => _switchKind(s.first),
@@ -212,6 +285,8 @@ class _RecordPageState extends State<RecordPage> {
   }
 
   Widget _form() {
+    if (_isTransfer) return _transferForm();
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
       children: <Widget>[
@@ -259,27 +334,67 @@ class _RecordPageState extends State<RecordPage> {
           ],
         ),
         const SizedBox(height: 6),
-        Row(
+        _dateRow(),
+        _noteField(),
+      ],
+    );
+  }
+
+  Widget _transferForm() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      children: <Widget>[
+        _label('从哪个账户转出'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: <Widget>[
-            TextButton.icon(
-              onPressed: _pickDate,
-              icon: const Icon(Icons.event, size: 18),
-              label: Text(fmtDate(_date)),
-            ),
+            for (final Account a in _accounts)
+              _chip(a.name, _accountId == a.id,
+                  () => setState(() => _accountId = a.id)),
           ],
         ),
-        TextField(
-          controller: _note,
-          maxLength: 40,
-          textInputAction: TextInputAction.done,
-          decoration: const InputDecoration(
-            hintText: '备注（可选）',
-            counterText: '',
-            isDense: true,
-            border: OutlineInputBorder(),
-          ),
+        const SizedBox(height: 16),
+        _label('转到哪个账户'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            for (final Account a in _accounts)
+              _chip(a.name, _toAccountId == a.id,
+                  () => setState(() => _toAccountId = a.id)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        _dateRow(),
+        _noteField(),
+      ],
+    );
+  }
+
+  Widget _dateRow() {
+    return Row(
+      children: <Widget>[
+        TextButton.icon(
+          onPressed: _pickDate,
+          icon: const Icon(Icons.event, size: 18),
+          label: Text(fmtDate(_date)),
         ),
       ],
+    );
+  }
+
+  Widget _noteField() {
+    return TextField(
+      controller: _note,
+      maxLength: 40,
+      textInputAction: TextInputAction.done,
+      decoration: const InputDecoration(
+        hintText: '备注（可选）',
+        counterText: '',
+        isDense: true,
+        border: OutlineInputBorder(),
+      ),
     );
   }
 
@@ -346,7 +461,7 @@ class _RecordPageState extends State<RecordPage> {
         height: 48,
         child: FilledButton(
           onPressed: _saving ? null : _save,
-          child: Text(_saving ? '保存中…' : '保存'),
+          child: Text(_saving ? '保存中…' : (_isEditing ? '保存修改' : '保存')),
         ),
       ),
     );

@@ -39,6 +39,8 @@ class ImportItem {
     required this.accountId,
     required this.categoryId,
     this.note,
+    this.merchant,
+    this.externalId,
   });
 
   final String kind;
@@ -47,6 +49,8 @@ class ImportItem {
   final int accountId;
   final int categoryId;
   final String? note;
+  final String? merchant;
+  final String? externalId;
 }
 
 class ImportResult {
@@ -121,6 +125,7 @@ class Repo {
     required int accountId,
     int? categoryId,
     String? note,
+    String? merchant,
     String source = 'manual',
     String? externalId,
     String? dedupHash,
@@ -134,7 +139,7 @@ class Repo {
       'to_account_id': null,
       'category_id': categoryId,
       'note': note,
-      'merchant': null,
+      'merchant': merchant,
       'source': source,
       'external_id': externalId,
       'dedup_hash': dedupHash,
@@ -235,9 +240,9 @@ class Repo {
           'to_account_id': null,
           'category_id': it.categoryId,
           'note': it.note,
-          'merchant': null,
+          'merchant': it.merchant,
           'source': source,
-          'external_id': null,
+          'external_id': it.externalId,
           'dedup_hash': dedupHashFor(
             kind: it.kind,
             amount: it.amount,
@@ -358,5 +363,178 @@ class Repo {
       orderBy: 'occurred_at DESC, id DESC',
     );
     return rows.map(Txn.fromMap).toList(growable: false);
+  }
+
+  Future<void> updateTxn({
+    required int id,
+    required String kind,
+    required int amount,
+    required DateTime occurredAt,
+    required int accountId,
+    int? toAccountId,
+    int? categoryId,
+    String? note,
+  }) async {
+    await db.update(
+      'txns',
+      <String, Object?>{
+        'kind': kind,
+        'amount': amount,
+        'occurred_at': toUtcMs(occurredAt),
+        'account_id': accountId,
+        'to_account_id': toAccountId,
+        'category_id': categoryId,
+        'note': note,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'id = ?',
+      whereArgs: <Object>[id],
+    );
+  }
+
+  /// 账户之间转账：一条记录，from 减、to 加
+  Future<int> addTransfer({
+    required int amount,
+    required DateTime occurredAt,
+    required int fromAccountId,
+    required int toAccountId,
+    String? note,
+  }) async {
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    return db.insert('txns', <String, Object?>{
+      'kind': 'transfer',
+      'amount': amount,
+      'occurred_at': toUtcMs(occurredAt),
+      'account_id': fromAccountId,
+      'to_account_id': toAccountId,
+      'category_id': null,
+      'note': note,
+      'merchant': null,
+      'source': 'manual',
+      'external_id': null,
+      'dedup_hash': null,
+      'deleted_at': null,
+      'created_at': now,
+      'updated_at': now,
+    });
+  }
+
+  Future<int> addCategory({
+    required String name,
+    required String kind,
+    int? parentId,
+  }) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'categories',
+      columns: <String>['sort'],
+      where: parentId == null ? 'kind = ? AND parent_id IS NULL' : 'parent_id = ?',
+      whereArgs: <Object>[parentId ?? kind],
+      orderBy: 'sort DESC',
+      limit: 1,
+    );
+    final int nextSort =
+        rows.isEmpty ? 0 : ((rows.first['sort'] as num?)?.toInt() ?? 0) + 1;
+    return db.insert('categories', <String, Object?>{
+      'name': name,
+      'kind': kind,
+      'parent_id': parentId,
+      'sort': nextSort,
+      'archived': 0,
+    });
+  }
+
+  Future<void> renameCategory(int id, String name) async {
+    await db.update('categories', <String, Object?>{'name': name},
+        where: 'id = ?', whereArgs: <Object>[id]);
+  }
+
+  /// 归档分类，子分类一起归档（历史流水仍保留原分类）
+  Future<void> archiveCategory(int id) async {
+    await db.update('categories', <String, Object?>{'archived': 1},
+        where: 'id = ? OR parent_id = ?', whereArgs: <Object>[id, id]);
+  }
+
+  /// 某个分类下还有多少条流水
+  Future<int> categoryUsage(int id) async {
+    final List<Map<String, Object?>> rows = await db.rawQuery(
+      'SELECT COUNT(*) AS c FROM txns WHERE deleted_at IS NULL AND category_id = ?',
+      <Object>[id],
+    );
+    return (rows.first['c'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<int> addAccount({
+    required String name,
+    required String type,
+    required int initialBalance,
+    required bool isLiability,
+    required bool includeInTotal,
+  }) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'accounts',
+      columns: <String>['sort'],
+      orderBy: 'sort DESC',
+      limit: 1,
+    );
+    final int nextSort =
+        rows.isEmpty ? 0 : ((rows.first['sort'] as num?)?.toInt() ?? 0) + 1;
+    return db.insert('accounts', <String, Object?>{
+      'name': name,
+      'type': type,
+      'initial_balance': initialBalance,
+      'is_liability': isLiability ? 1 : 0,
+      'include_in_total': includeInTotal ? 1 : 0,
+      'sort': nextSort,
+      'archived': 0,
+      'created_at': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  Future<void> updateAccount({
+    required int id,
+    required String name,
+    required String type,
+    required int initialBalance,
+    required bool isLiability,
+    required bool includeInTotal,
+  }) async {
+    await db.update(
+      'accounts',
+      <String, Object?>{
+        'name': name,
+        'type': type,
+        'initial_balance': initialBalance,
+        'is_liability': isLiability ? 1 : 0,
+        'include_in_total': includeInTotal ? 1 : 0,
+      },
+      where: 'id = ?',
+      whereArgs: <Object>[id],
+    );
+  }
+
+  /// 某个账户最近的流水（含转入的）
+  Future<List<Txn>> txnsForAccount(int accountId, {int limit = 20}) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'txns',
+      where: 'deleted_at IS NULL AND (account_id = ? OR to_account_id = ?)',
+      whereArgs: <Object>[accountId, accountId],
+      orderBy: 'occurred_at DESC, id DESC',
+      limit: limit,
+    );
+    return rows.map(Txn.fromMap).toList(growable: false);
+  }
+
+  Future<Map<String, int>> storageStats() async {
+    final List<Map<String, Object?>> tx = await db
+        .rawQuery('SELECT COUNT(*) AS c FROM txns WHERE deleted_at IS NULL');
+    final List<Map<String, Object?>> cat =
+        await db.rawQuery('SELECT COUNT(*) AS c FROM categories');
+    final List<Map<String, Object?>> acc = await db
+        .rawQuery('SELECT COUNT(*) AS c FROM accounts WHERE archived = 0');
+    return <String, int>{
+      'txns': (tx.first['c'] as num?)?.toInt() ?? 0,
+      'categories': (cat.first['c'] as num?)?.toInt() ?? 0,
+      'accounts': (acc.first['c'] as num?)?.toInt() ?? 0,
+    };
   }
 }

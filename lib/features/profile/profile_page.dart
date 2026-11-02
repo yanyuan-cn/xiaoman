@@ -7,12 +7,14 @@ import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/money.dart';
+import '../../core/storage.dart';
 import '../../core/version.dart';
 import '../../data/models.dart';
 import '../../data/apk_updater.dart';
 import '../../data/repo.dart';
 import '../../data/update_service.dart';
 import '../../state/data_bus.dart';
+import '../categories/categories_page.dart';
 import '../import/import_page.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -26,6 +28,83 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   bool _checking = false;
+  int _cacheBytes = 0;
+  int _dbBytes = 0;
+  Map<String, int> _stats = const <String, int>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStorage();
+  }
+
+  Future<void> _loadStorage() async {
+    final int cache = await cacheBytes();
+    final int db = await databaseBytes();
+    final Map<String, int> stats = await widget.repo.storageStats();
+    if (!mounted) return;
+    setState(() {
+      _cacheBytes = cache;
+      _dbBytes = db;
+      _stats = stats;
+    });
+  }
+
+  Future<void> _showStorage() async {
+    await _loadStorage();
+    if (!mounted) return;
+    final bool? cleared = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('存储占用'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            _storageRow('数据库', formatBytes(_dbBytes)),
+            _storageRow('缓存', formatBytes(_cacheBytes)),
+            const SizedBox(height: 10),
+            Text(
+              '${_stats['txns'] ?? 0} 条流水 · ${_stats['categories'] ?? 0} 个分类 · ${_stats['accounts'] ?? 0} 个账户',
+              style: const TextStyle(fontSize: 12, color: Colors.black45),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              '缓存里主要是更新时下载的安装包，清理不会影响账目。',
+              style: TextStyle(fontSize: 11, color: Colors.black38),
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('关闭'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('清理缓存'),
+          ),
+        ],
+      ),
+    );
+    if (cleared != true) return;
+    final int freed = await clearCache();
+    await _loadStorage();
+    if (!mounted) return;
+    _toast('已清理 ${formatBytes(freed)}');
+  }
+
+  Widget _storageRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: <Widget>[
+          SizedBox(width: 64, child: Text(label, style: const TextStyle(fontSize: 13))),
+          Text(value, style: const TextStyle(fontSize: 13, color: Colors.black54)),
+        ],
+      ),
+    );
+  }
 
   void _toast(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -40,6 +119,14 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
     DataBus.instance.bump();
+  }
+
+  Future<void> _openCategories() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext _) => CategoriesPage(repo: widget.repo),
+      ),
+    );
   }
 
   Future<void> _undoImport() async {
@@ -227,7 +314,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
 
   Future<void> _startUpdate(UpdateInfo info) async {
-    if (info.apkUrl.isEmpty) {
+    if (info.apkUrls.isEmpty) {
       await _openUrl(info.pageUrl);
       return;
     }
@@ -364,8 +451,10 @@ class _ProfilePageState extends State<ProfilePage> {
           _section('数据'),
           _tile(Icons.upload_file, '导入账单', _openImport),
           _tile(Icons.undo, '撤销上次导入', _undoImport),
+          _tile(Icons.category_outlined, '分类管理', _openCategories),
           _tile(Icons.file_download_outlined, '导出流水 CSV', _exportCsv),
           _tile(Icons.backup_outlined, '备份为 JSON', _exportJson),
+          _tile(Icons.cleaning_services_outlined, '存储占用', _showStorage),
           const SizedBox(height: 12),
           _section('关于'),
           _tile(
