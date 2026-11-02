@@ -1,8 +1,8 @@
 {
   "versionCode": 11,
   "versionName": "1.0.1",
-  "apkUrl": "",
-  "sha256": "",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.0.1/app-release.apk",
+  "sha256": "66D43477054EB7029A0224189252143D06B265E64D9A5296E64845C5EE684D81",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "更新源改为 GitHub Pages 优先，镜像兜底；请求带时间戳避免缓存；新增自定义更新源设置"
+  "notes": "更新源改用 GitHub Pages 优先，镜像兜底；请求带时间戳；新增自定义更新源"
 }
