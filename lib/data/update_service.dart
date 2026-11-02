@@ -39,11 +39,23 @@ class UpdateException implements Exception {
 
 class UpdateService {
   /// 依次尝试多个清单地址，返回第一个成功的结果。
-  static Future<UpdateInfo> fetchLatest() async {
-    for (final String url in kUpdateManifestUrls) {
+  static Uri _stamped(String url) {
+    final Uri u = Uri.parse(url);
+    final Map<String, String> q = Map<String, String>.from(u.queryParameters);
+    q['t'] = DateTime.now().millisecondsSinceEpoch.toString();
+    return u.replace(queryParameters: q);
+  }
+
+  static Future<UpdateInfo> fetchLatest({String? overrideUrl}) async {
+    final List<String> urls = <String>[
+      if (overrideUrl != null && overrideUrl.trim().isNotEmpty)
+        overrideUrl.trim(),
+      ...kUpdateManifestUrls,
+    ];
+    for (final String url in urls) {
       try {
         final http.Response res =
-            await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+            await http.get(_stamped(url)).timeout(const Duration(seconds: 8));
         if (res.statusCode != 200) continue;
         final String body = utf8.decode(res.bodyBytes);
         final Object? decoded = jsonDecode(body);
@@ -53,7 +65,7 @@ class UpdateService {
         continue;
       }
     }
-    throw UpdateException('连接失败，已尝试 ${kUpdateManifestUrls.length} 个地址');
+    throw UpdateException('连接失败，已尝试 ${urls.length} 个地址');
   }
 
   static UpdateInfo _parse(Map<String, dynamic> m) {

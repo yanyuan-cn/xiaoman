@@ -537,4 +537,27 @@ class Repo {
       'accounts': (acc.first['c'] as num?)?.toInt() ?? 0,
     };
   }
+
+  Future<String?> getSetting(String key) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'settings',
+      where: 'key = ?',
+      whereArgs: <Object>[key],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['value'] as String?;
+  }
+
+  Future<void> setSetting(String key, String? value) async {
+    if (value == null || value.isEmpty) {
+      await db.delete('settings', where: 'key = ?', whereArgs: <Object>[key]);
+      return;
+    }
+    await db.insert(
+      'settings',
+      <String, Object?>{'key': key, 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
 }

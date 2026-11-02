@@ -31,11 +31,67 @@ class _ProfilePageState extends State<ProfilePage> {
   int _cacheBytes = 0;
   int _dbBytes = 0;
   Map<String, int> _stats = const <String, int>{};
+  String? _updateUrl;
 
   @override
   void initState() {
     super.initState();
     _loadStorage();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final String? url = await widget.repo.getSetting('update_url');
+    if (!mounted) return;
+    setState(() => _updateUrl = url);
+  }
+
+  Future<void> _editUpdateUrl() async {
+    final TextEditingController ctl =
+        TextEditingController(text: _updateUrl ?? '');
+    final String? result = await showDialog<String>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('更新源'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Text(
+              '填 version.json 的地址。留空则使用内置的多个地址自动尝试。',
+              style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.5),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: ctl,
+              maxLines: 3,
+              minLines: 1,
+              decoration: const InputDecoration(
+                hintText: 'https://example.com/version.json',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(ctl.text.trim()),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    ctl.dispose();
+    if (result == null) return;
+    await widget.repo.setSetting('update_url', result);
+    await _loadSettings();
+    if (!mounted) return;
+    _toast(result.isEmpty ? '已恢复默认更新源' : '已保存自定义更新源');
   }
 
   Future<void> _loadStorage() async {
@@ -266,7 +322,8 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _checkUpdate() async {
     setState(() => _checking = true);
     try {
-      final UpdateInfo info = await UpdateService.fetchLatest();
+      final UpdateInfo info =
+          await UpdateService.fetchLatest(overrideUrl: _updateUrl);
       if (!mounted) return;
       setState(() => _checking = false);
       if (info.versionCode > kAppBuild) {
@@ -462,6 +519,14 @@ class _ProfilePageState extends State<ProfilePage> {
             _checking ? '正在检查…' : '检查更新',
             _checking ? null : _checkUpdate,
           ),
+          _tile(
+            Icons.cloud_outlined,
+            '更新源',
+            _editUpdateUrl,
+            subtitle: (_updateUrl == null || _updateUrl!.isEmpty)
+                ? '默认（自动尝试多个地址）'
+                : _updateUrl!,
+          ),
           _tile(Icons.article_outlined, '更新日志', _showChangelog),
           _tile(Icons.info_outline, '开源地址', () => _openUrl(kRepoUrl)),
           const SizedBox(height: 18),
@@ -482,13 +547,20 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _tile(IconData icon, String title, VoidCallback? onTap) {
+  Widget _tile(IconData icon, String title, VoidCallback? onTap,
+      {String? subtitle}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 1),
       color: Colors.white,
       child: ListTile(
         leading: Icon(icon, size: 20, color: const Color(0xFF3F7D58)),
         title: Text(title, style: const TextStyle(fontSize: 15)),
+        subtitle: subtitle == null
+            ? null
+            : Text(subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11, color: Colors.black38)),
         trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.black26),
         onTap: onTap,
       ),

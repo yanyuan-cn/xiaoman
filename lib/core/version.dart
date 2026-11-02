@@ -1,12 +1,12 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '1.0.0';
-const int kAppBuild = 10;
+const String kAppVersion = '1.0.1';
+const int kAppBuild = 11;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
 const List<String> kUpdateManifestUrls = <String>[
-  'https://raw.gitmirror.com/yanyuan-cn/xiaoman/main/version.json',
+  'https://yanyuan-cn.github.io/xiaoman/version.json',
   'https://ghproxy.net/https://raw.githubusercontent.com/yanyuan-cn/xiaoman/main/version.json',
   'https://cdn.jsdelivr.net/gh/yanyuan-cn/xiaoman@main/version.json',
   'https://raw.githubusercontent.com/yanyuan-cn/xiaoman/main/version.json',
@@ -25,6 +25,11 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+1.0.1
+· 更新源改用 GitHub Pages 优先，镜像兜底
+· 请求带时间戳，避免 CDN 缓存导致看不到新版
+· 新增「更新源」设置，可手动指定地址
+
 1.0.0
 · 资产：账户详情页，可改名、改类型、改余额、设为定期/活期
 · 资产：新增账户，支持「是否计入总资产」
