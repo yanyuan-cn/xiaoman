@@ -1,8 +1,8 @@
 {
-  "versionCode": 12,
-  "versionName": "1.0.2",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.0.2/app-release.apk",
-  "sha256": "CA0760BE6CB7C32F3D997E45E4423C77D0656C01ABCA5297B8CC07B1A70C7A2F",
+  "versionCode": 13,
+  "versionName": "1.1.0",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.1.0/app-release.apk",
+  "sha256": "B3DD985EF5DBC89C32CC39E1009DD0FC1E9EC0736271BBDCCFB6D4E1D84E92E7",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "修复 release 包缺少联网权限导致检查更新失败"
+  "notes": "新增预算、定期扣款/贷款还款、统计饼图与年度视图、新图标"
 }
