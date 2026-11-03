@@ -11,6 +11,11 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final Repo repo = Repo(await openLedgerDb());
   await cleanUpdateCache();
+  try {
+    await repo.runDueRecurringRules();
+  } catch (_) {
+    // 自动记账失败不影响启动。
+  }
   await applyHighRefreshRate();
   runApp(XiaomanApp(repo: repo));
 }

@@ -35,6 +35,7 @@ class _RecordPageState extends State<RecordPage> {
   List<TxnCategory> _categories = const <TxnCategory>[];
   bool _ready = false;
   bool _saving = false;
+  late bool _inBudget = widget.editing?.inBudget ?? true;
 
   bool get _isEditing => widget.editing != null;
   bool get _isTransfer => _kind == 'transfer';
@@ -195,6 +196,7 @@ class _RecordPageState extends State<RecordPage> {
         toAccountId: _isTransfer ? _toAccountId : null,
         categoryId: categoryId,
         note: note.isEmpty ? null : note,
+        inBudget: _inBudget,
       );
     } else if (_isTransfer) {
       await widget.repo.addTransfer(
@@ -212,6 +214,7 @@ class _RecordPageState extends State<RecordPage> {
         accountId: accountId,
         categoryId: categoryId,
         note: note.isEmpty ? null : note,
+        inBudget: _inBudget,
       );
     }
 
@@ -336,6 +339,7 @@ class _RecordPageState extends State<RecordPage> {
         const SizedBox(height: 6),
         _dateRow(),
         _noteField(),
+        _budgetSwitch(),
       ],
     );
   }
@@ -369,6 +373,31 @@ class _RecordPageState extends State<RecordPage> {
         _dateRow(),
         _noteField(),
       ],
+    );
+  }
+
+  Widget _budgetSwitch() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        children: <Widget>[
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('计入预算', style: TextStyle(fontSize: 14)),
+                SizedBox(height: 2),
+                Text('关掉后这笔钱不算进预算已用',
+                    style: TextStyle(fontSize: 11, color: Colors.black38)),
+              ],
+            ),
+          ),
+          Switch(
+            value: _inBudget,
+            onChanged: (bool v) => setState(() => _inBudget = v),
+          ),
+        ],
+      ),
     );
   }
 

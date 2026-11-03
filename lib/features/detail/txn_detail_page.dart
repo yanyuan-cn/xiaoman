@@ -20,6 +20,7 @@ class TxnDetailPage extends StatefulWidget {
 class _TxnDetailPageState extends State<TxnDetailPage> {
   Map<int, Account> _accounts = const <int, Account>{};
   Map<int, TxnCategory> _categories = const <int, TxnCategory>{};
+  late bool _inBudget = widget.txn.inBudget;
 
   @override
   void initState() {
@@ -160,6 +161,8 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
             _row('商户', _t.merchant ?? '—'),
             _row('订单号', _t.externalId ?? '—', selectable: true),
             _row('备注', (_t.note ?? '').isEmpty ? '—' : _t.note!),
+            if (!isTransfer)
+              _switchRow('计入预算', _inBudget, (bool v) => _setInBudget(v)),
           ]),
           const SizedBox(height: 16),
           _card(<Widget>[
@@ -179,6 +182,33 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
                       _t.updatedAtMs)),
             ),
           ]),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _setInBudget(bool value) async {
+    await widget.repo.setTxnInBudget(_t.id, value);
+    if (!mounted) return;
+    setState(() => _inBudget = value);
+    DataBus.instance.bump();
+  }
+
+  Widget _switchRow(String label, bool value, ValueChanged<bool> onChanged) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: <Widget>[
+          SizedBox(
+            width: 76,
+            child: Text(label,
+                style: const TextStyle(fontSize: 13, color: Colors.black45)),
+          ),
+          const Expanded(
+            child: Text('关掉后不计入预算已用',
+                style: TextStyle(fontSize: 12, color: Colors.black38)),
+          ),
+          Switch(value: value, onChanged: onChanged),
         ],
       ),
     );

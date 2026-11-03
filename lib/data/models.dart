@@ -68,6 +68,71 @@ class TxnCategory {
       );
 }
 
+class BudgetRule {
+  const BudgetRule({
+    required this.scope,
+    required this.amount,
+    this.categoryId,
+  });
+
+  /// 'all' = 总预算；'category' = 某个一级分类的预算
+  final String scope;
+  final int amount;
+  final int? categoryId;
+
+  bool get isAll => scope == 'all';
+
+  factory BudgetRule.fromMap(Map<String, Object?> m) => BudgetRule(
+        scope: (m['scope'] as String?) ?? 'all',
+        amount: (m['amount'] as num?)?.toInt() ?? 0,
+        categoryId: (m['category_id'] as num?)?.toInt(),
+      );
+}
+
+class RecurringRule {
+  const RecurringRule({
+    required this.id,
+    required this.name,
+    required this.amount,
+    required this.dayOfMonth,
+    required this.fromAccountId,
+    this.toAccountId,
+    this.categoryId,
+    this.note,
+    this.active = true,
+    this.lastRunAt,
+    this.createdAt = 0,
+  });
+
+  final int id;
+  final String name;
+  final int amount;
+  final int dayOfMonth;
+  final int fromAccountId;
+  final int? toAccountId;
+  final int? categoryId;
+  final String? note;
+  final bool active;
+  final int? lastRunAt;
+  final int createdAt;
+
+  bool get isRepayment => toAccountId != null;
+
+  factory RecurringRule.fromMap(Map<String, Object?> m) => RecurringRule(
+        id: m['id']! as int,
+        name: (m['name'] as String?) ?? '',
+        amount: (m['amount'] as num?)?.toInt() ?? 0,
+        dayOfMonth: (m['day_of_month'] as num?)?.toInt() ?? 1,
+        fromAccountId: (m['from_account_id'] as num?)?.toInt() ?? 0,
+        toAccountId: (m['to_account_id'] as num?)?.toInt(),
+        categoryId: (m['category_id'] as num?)?.toInt(),
+        note: m['note'] as String?,
+        active: ((m['active'] as num?)?.toInt() ?? 1) == 1,
+        lastRunAt: (m['last_run_at'] as num?)?.toInt(),
+        createdAt: (m['created_at'] as num?)?.toInt() ?? 0,
+      );
+}
+
 class Txn {
   const Txn({
     required this.id,
@@ -81,6 +146,7 @@ class Txn {
     this.note,
     this.merchant,
     this.externalId,
+    this.inBudget = true,
     this.createdAtMs = 0,
     this.updatedAtMs = 0,
   });
@@ -96,6 +162,10 @@ class Txn {
   final String? note;
   final String? merchant;
   final String? externalId;
+
+  /// 是否计入预算。转账默认不计入。
+  final bool inBudget;
+
   final int createdAtMs;
   final int updatedAtMs;
 
@@ -116,6 +186,8 @@ class Txn {
         return '支付宝导入';
       case 'wechat':
         return '微信导入';
+      case 'auto':
+        return '定期扣款（自动生成）';
       default:
         return source;
     }
@@ -133,6 +205,7 @@ class Txn {
         note: m['note'] as String?,
         merchant: m['merchant'] as String?,
         externalId: m['external_id'] as String?,
+        inBudget: ((m['in_budget'] as num?)?.toInt() ?? 1) == 1,
         createdAtMs: (m['created_at'] as num?)?.toInt() ?? 0,
         updatedAtMs: (m['updated_at'] as num?)?.toInt() ?? 0,
       );

@@ -41,6 +41,7 @@ class ImportItem {
     this.note,
     this.merchant,
     this.externalId,
+    this.inBudget = true,
   });
 
   final String kind;
@@ -51,6 +52,7 @@ class ImportItem {
   final String? note;
   final String? merchant;
   final String? externalId;
+  final bool inBudget;
 }
 
 class ImportResult {
@@ -129,6 +131,7 @@ class Repo {
     String source = 'manual',
     String? externalId,
     String? dedupHash,
+    bool inBudget = true,
   }) async {
     final int now = DateTime.now().millisecondsSinceEpoch;
     return db.insert('txns', <String, Object?>{
@@ -143,6 +146,7 @@ class Repo {
       'source': source,
       'external_id': externalId,
       'dedup_hash': dedupHash,
+      'in_budget': inBudget ? 1 : 0,
       'deleted_at': null,
       'created_at': now,
       'updated_at': now,
@@ -249,6 +253,7 @@ class Repo {
             at: it.occurredAt,
             note: it.note,
           ),
+          'in_budget': it.inBudget ? 1 : 0,
           'deleted_at': null,
           'created_at': now,
           'updated_at': now,
@@ -374,6 +379,7 @@ class Repo {
     int? toAccountId,
     int? categoryId,
     String? note,
+    bool inBudget = true,
   }) async {
     await db.update(
       'txns',
@@ -385,6 +391,7 @@ class Repo {
         'to_account_id': toAccountId,
         'category_id': categoryId,
         'note': note,
+        'in_budget': inBudget ? 1 : 0,
         'updated_at': DateTime.now().millisecondsSinceEpoch,
       },
       where: 'id = ?',
@@ -413,6 +420,7 @@ class Repo {
       'source': 'manual',
       'external_id': null,
       'dedup_hash': null,
+      'in_budget': 0,
       'deleted_at': null,
       'created_at': now,
       'updated_at': now,
@@ -559,5 +567,259 @@ class Repo {
       <String, Object?>{'key': key, 'value': value},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  // ---------------- 预算 ----------------
+
+  Future<List<BudgetRule>> budgets() async {
+    final List<Map<String, Object?>> rows =
+        await db.query('budgets', where: 'active = 1', orderBy: 'id ASC');
+    return rows.map(BudgetRule.fromMap).toList(growable: false);
+  }
+
+  /// 金额填 0 等于删除这条预算
+  Future<void> saveBudget({
+    required String scope,
+    int? categoryId,
+    required int amount,
+  }) async {
+    if (amount <= 0) {
+      await deleteBudget(scope: scope, categoryId: categoryId);
+      return;
+    }
+    final List<Map<String, Object?>> rows = await db.query(
+      'budgets',
+      where: categoryId == null
+          ? "scope = 'all'"
+          : 'scope = ? AND category_id = ?',
+      whereArgs:
+          categoryId == null ? null : <Object>['category', categoryId],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      await db.insert('budgets', <String, Object?>{
+        'scope': scope,
+        'category_id': categoryId,
+        'amount': amount,
+        'active': 1,
+        'created_at': DateTime.now().millisecondsSinceEpoch,
+      });
+    } else {
+      await db.update(
+        'budgets',
+        <String, Object?>{'amount': amount},
+        where: 'id = ?',
+        whereArgs: <Object?>[rows.first['id']],
+      );
+    }
+  }
+
+  Future<void> deleteBudget({required String scope, int? categoryId}) async {
+    if (categoryId == null) {
+      await db.delete('budgets', where: "scope = 'all'");
+      return;
+    }
+    await db.delete('budgets',
+        where: 'scope = ? AND category_id = ?',
+        whereArgs: <Object>[scope, categoryId]);
+  }
+
+  /// 本期已用（只算计入预算的支出）。parentCategoryId 为 null 时算全部支出。
+  Future<int> budgetSpent({
+    required DateTime from,
+    required DateTime to,
+    int? parentCategoryId,
+  }) async {
+    if (parentCategoryId == null) {
+      final List<Map<String, Object?>> rows = await db.rawQuery(
+        "SELECT SUM(amount) AS total FROM txns "
+        "WHERE deleted_at IS NULL AND kind = 'expense' AND in_budget = 1 "
+        'AND occurred_at >= ? AND occurred_at < ?',
+        <Object>[toUtcMs(from), toUtcMs(to)],
+      );
+      return (rows.first['total'] as num?)?.toInt() ?? 0;
+    }
+    final List<Map<String, Object?>> rows = await db.rawQuery(
+      'SELECT SUM(t.amount) AS total FROM txns t '
+      'JOIN categories c ON c.id = t.category_id '
+      'WHERE t.deleted_at IS NULL AND t.kind = ? AND t.in_budget = 1 '
+      'AND t.occurred_at >= ? AND t.occurred_at < ? '
+      'AND (c.id = ? OR c.parent_id = ?)',
+      <Object>[
+        'expense',
+        toUtcMs(from),
+        toUtcMs(to),
+        parentCategoryId,
+        parentCategoryId,
+      ],
+    );
+    return (rows.first['total'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<void> setTxnInBudget(int id, bool inBudget) async {
+    await db.update(
+      'txns',
+      <String, Object?>{'in_budget': inBudget ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: <Object>[id],
+    );
+  }
+
+  /// 某一年的 12 个月收支（索引 0 = 1 月）
+  Future<List<MonthSummary>> monthlySummary(int year) async {
+    final List<Map<String, Object?>> rows = await db.rawQuery(
+      "SELECT kind, occurred_at, amount FROM txns "
+      "WHERE deleted_at IS NULL AND kind IN ('expense', 'income') "
+      'AND occurred_at >= ? AND occurred_at < ?',
+      <Object>[toUtcMs(DateTime(year)), toUtcMs(DateTime(year + 1))],
+    );
+    final List<int> exp = List<int>.filled(12, 0);
+    final List<int> inc = List<int>.filled(12, 0);
+    for (final Map<String, Object?> r in rows) {
+      final DateTime d = DateTime.fromMillisecondsSinceEpoch(
+        (r['occurred_at'] as num).toInt(),
+        isUtc: true,
+      ).toLocal();
+      final int i = d.month - 1;
+      final int amount = (r['amount'] as num).toInt();
+      if (r['kind'] == 'expense') {
+        exp[i] += amount;
+      } else {
+        inc[i] += amount;
+      }
+    }
+    return List<MonthSummary>.generate(
+      12,
+      (int i) => MonthSummary(expense: exp[i], income: inc[i]),
+      growable: false,
+    );
+  }
+
+  // ---------------- 定期扣款 / 贷款还款 ----------------
+
+  Future<List<RecurringRule>> recurringRules() async {
+    final List<Map<String, Object?>> rows =
+        await db.query('recurring_rules', orderBy: 'id ASC');
+    return rows.map(RecurringRule.fromMap).toList(growable: false);
+  }
+
+  Future<int> saveRecurringRule({
+    int? id,
+    required String name,
+    required int amount,
+    required int dayOfMonth,
+    required int fromAccountId,
+    int? toAccountId,
+    int? categoryId,
+    String? note,
+    bool active = true,
+  }) async {
+    final Map<String, Object?> values = <String, Object?>{
+      'name': name,
+      'amount': amount,
+      'day_of_month': dayOfMonth,
+      'from_account_id': fromAccountId,
+      'to_account_id': toAccountId,
+      'category_id': categoryId,
+      'note': note,
+      'active': active ? 1 : 0,
+    };
+    if (id == null) {
+      values['created_at'] = DateTime.now().millisecondsSinceEpoch;
+      return db.insert('recurring_rules', values);
+    }
+    await db.update('recurring_rules', values,
+        where: 'id = ?', whereArgs: <Object>[id]);
+    return id;
+  }
+
+  Future<void> deleteRecurringRule(int id) async {
+    await db.delete('recurring_rules', where: 'id = ?', whereArgs: <Object>[id]);
+  }
+
+  Future<void> setRecurringRuleActive(int id, bool active) async {
+    await db.update(
+      'recurring_rules',
+      <String, Object?>{'active': active ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: <Object>[id],
+    );
+  }
+
+  /// 补跑所有到期规则，返回本次新生成的流水 id（用于撤销）
+  Future<List<int>> runDueRecurringRules({DateTime? now}) async {
+    final DateTime n = now ?? DateTime.now();
+    final List<Map<String, Object?>> rows =
+        await db.query('recurring_rules', where: 'active = 1');
+    final List<int> created = <int>[];
+
+    for (final Map<String, Object?> row in rows) {
+      final RecurringRule r = RecurringRule.fromMap(row);
+      DateTime cursor = r.createdAt > 0
+          ? DateTime.fromMillisecondsSinceEpoch(r.createdAt)
+          : DateTime(n.year, n.month);
+      cursor = DateTime(cursor.year, cursor.month);
+
+      for (int guard = 0; guard < 24; guard++) {
+        if (cursor.isAfter(DateTime(n.year, n.month))) break;
+        final int day = r.dayOfMonth < 1
+            ? 1
+            : (r.dayOfMonth > 28 ? 28 : r.dayOfMonth);
+        final DateTime due = DateTime(cursor.year, cursor.month, day, 12);
+        if (!due.isAfter(n)) {
+          final String ext =
+              'rule:${r.id}:${due.year}-${due.month.toString().padLeft(2, '0')}';
+          final List<Map<String, Object?>> hit = await db.query(
+            'txns',
+            columns: <String>['id'],
+            where: 'source = ? AND external_id = ?',
+            whereArgs: <Object>['auto', ext],
+            limit: 1,
+          );
+          if (hit.isEmpty) {
+            final int id = await db.insert('txns', <String, Object?>{
+              'kind': r.toAccountId == null ? 'expense' : 'transfer',
+              'amount': r.amount,
+              'occurred_at': toUtcMs(due),
+              'account_id': r.fromAccountId,
+              'to_account_id': r.toAccountId,
+              'category_id': r.categoryId,
+              'note': (r.note ?? '').isEmpty ? r.name : r.note,
+              'merchant': null,
+              'source': 'auto',
+              'external_id': ext,
+              'dedup_hash': null,
+              'in_budget': r.toAccountId == null ? 1 : 0,
+              'deleted_at': null,
+              'created_at': n.millisecondsSinceEpoch,
+              'updated_at': n.millisecondsSinceEpoch,
+            });
+            created.add(id);
+          }
+        }
+        cursor = DateTime(cursor.year, cursor.month + 1);
+      }
+
+      await db.update(
+        'recurring_rules',
+        <String, Object?>{'last_run_at': n.millisecondsSinceEpoch},
+        where: 'id = ?',
+        whereArgs: <Object>[r.id],
+      );
+    }
+    return created;
+  }
+
+  Future<void> undoAutoTxns(List<int> ids) async {
+    if (ids.isEmpty) return;
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    for (final int id in ids) {
+      await db.update(
+        'txns',
+        <String, Object?>{'deleted_at': now},
+        where: 'id = ?',
+        whereArgs: <Object>[id],
+      );
+    }
   }
 }

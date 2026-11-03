@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/money.dart';
 import '../../core/storage.dart';
 import '../../core/version.dart';
 import '../../data/models.dart';
@@ -14,8 +13,10 @@ import '../../data/apk_updater.dart';
 import '../../data/repo.dart';
 import '../../data/update_service.dart';
 import '../../state/data_bus.dart';
+import '../budget/budget_page.dart';
 import '../categories/categories_page.dart';
 import '../import/import_page.dart';
+import '../recurring/recurring_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key, required this.repo});
@@ -183,6 +184,24 @@ class _ProfilePageState extends State<ProfilePage> {
         builder: (BuildContext _) => CategoriesPage(repo: widget.repo),
       ),
     );
+  }
+
+  Future<void> _openBudget() async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (BuildContext _) => BudgetPage(repo: widget.repo),
+      ),
+    );
+    DataBus.instance.bump();
+  }
+
+  Future<void> _openRecurring() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext _) => RecurringPage(repo: widget.repo),
+      ),
+    );
+    DataBus.instance.bump();
   }
 
   Future<void> _undoImport() async {
@@ -507,6 +526,8 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 18),
           _section('数据'),
           _tile(Icons.upload_file, '导入账单', _openImport),
+          _tile(Icons.pie_chart_outline, '预算', _openBudget),
+          _tile(Icons.event_repeat, '定期扣款', _openRecurring),
           _tile(Icons.undo, '撤销上次导入', _undoImport),
           _tile(Icons.category_outlined, '分类管理', _openCategories),
           _tile(Icons.file_download_outlined, '导出流水 CSV', _exportCsv),

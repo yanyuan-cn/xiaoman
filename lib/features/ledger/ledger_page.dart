@@ -6,6 +6,7 @@ import '../../data/models.dart';
 import '../../data/repo.dart';
 import '../../state/data_bus.dart';
 import '../../state/ledger.dart';
+import '../budget/budget_page.dart';
 import '../detail/txn_detail_page.dart';
 import '../import/import_page.dart';
 import '../record/record_page.dart';
@@ -26,6 +27,27 @@ class _LedgerPageState extends State<LedgerPage> {
   void initState() {
     super.initState();
     DataBus.instance.addListener(_onDataChanged);
+    _runAutoBills();
+  }
+
+  Future<void> _runAutoBills() async {
+    final List<int> ids = await widget.repo.runDueRecurringRules();
+    if (!mounted || ids.isEmpty) return;
+    await _state.load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('已自动记 ${ids.length} 笔定期账单'),
+        duration: const Duration(seconds: 6),
+        action: SnackBarAction(
+          label: '撤销',
+          onPressed: () async {
+            await widget.repo.undoAutoTxns(ids);
+            if (mounted) await _state.load();
+          },
+        ),
+      ),
+    );
   }
 
   void _onDataChanged() {
@@ -188,20 +210,187 @@ class _LedgerPageState extends State<LedgerPage> {
   }
 
   Widget _summaryCard() {
+    final bool showBudget = _state.isCurrentPeriod && !_state.loading;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-      padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
         color: const Color(0xFF3F7D58),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(
+      child: Column(
         children: <Widget>[
-          _stat('支出', formatCents(_state.summary.expense), Colors.white),
-          _stat('收入', formatCents(_state.summary.income), Colors.white),
-          _stat('结余', formatCents(_state.summary.net), const Color(0xFFFFE08A)),
+          Padding(
+            padding: EdgeInsets.fromLTRB(0, 16, 0, showBudget ? 10 : 16),
+            child: Row(
+              children: <Widget>[
+                _stat('支出', formatCents(_state.summary.expense), Colors.white),
+                _stat('收入', formatCents(_state.summary.income), Colors.white),
+                _stat('结余', formatCents(_state.summary.net),
+                    const Color(0xFFFFE08A)),
+              ],
+            ),
+          ),
+          if (showBudget) _budgetSection(),
         ],
       ),
+    );
+  }
+
+  Future<void> _openBudget() async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (BuildContext _) => BudgetPage(repo: widget.repo),
+      ),
+    );
+    if (mounted) await _state.load();
+  }
+
+  Widget _budgetSection() {
+    final LedgerState s = _state;
+    if (!s.hasBudget) {
+      return InkWell(
+        onTap: _openBudget,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 12, 14),
+          child: Row(
+            children: <Widget>[
+              Text(
+                '设置预算，看看每月还能花多少',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white.withValues(alpha: 0.8),
+                ),
+              ),
+              const Spacer(),
+              Icon(Icons.chevron_right,
+                  size: 18, color: Colors.white.withValues(alpha: 0.8)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final int used = s.budgetSpentTotal;
+    final int total = s.budgetTotal;
+    final int remaining = total - used;
+    final double ratio =
+        total <= 0 ? 0 : (used / total).clamp(0.0, 1.0).toDouble();
+    final Color remainColor = remaining < 0
+        ? const Color(0xFFFF8A80)
+        : const Color(0xFFFFE08A);
+
+    return InkWell(
+      onTap: _openBudget,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Divider(height: 1, color: Colors.white.withValues(alpha: 0.18)),
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                Text(
+                  total > 0 ? '预算 ¥${formatCents(total)}' : '预算',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ),
+                const Spacer(),
+                if (total > 0)
+                  Text(
+                    remaining < 0
+                        ? '超支 ¥${formatCents(-remaining)}'
+                        : '剩余 ¥${formatCents(remaining)}',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: remainColor,
+                    ),
+                  ),
+              ],
+            ),
+            if (total > 0) ...<Widget>[
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: ratio,
+                  minHeight: 5,
+                  backgroundColor: Colors.white.withValues(alpha: 0.22),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    remaining < 0 ? const Color(0xFFFF8A80) : Colors.white,
+                  ),
+                ),
+              ),
+            ],
+            if (s.budgetFood > 0 || s.budgetShop > 0) ...<Widget>[
+              const SizedBox(height: 10),
+              Row(
+                children: <Widget>[
+                  if (s.budgetFood > 0)
+                    Expanded(
+                      child: _miniBudget(
+                          '餐饮', s.budgetSpentFood, s.budgetFood),
+                    ),
+                  if (s.budgetFood > 0 && s.budgetShop > 0)
+                    const SizedBox(width: 16),
+                  if (s.budgetShop > 0)
+                    Expanded(
+                      child: _miniBudget(
+                          '购物', s.budgetSpentShop, s.budgetShop),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _miniBudget(String label, int used, int total) {
+    final int remain = total - used;
+    final double ratio = (used / total).clamp(0.0, 1.0).toDouble();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Text(label,
+                style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.white.withValues(alpha: 0.75))),
+            const SizedBox(width: 6),
+            Text(
+              remain < 0
+                  ? '超 ¥${formatCents(-remain)}'
+                  : '余 ¥${formatCents(remain)}',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: remain < 0
+                    ? const Color(0xFFFF8A80)
+                    : Colors.white.withValues(alpha: 0.9),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: 3,
+            backgroundColor: Colors.white.withValues(alpha: 0.18),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              remain < 0 ? const Color(0xFFFF8A80) : Colors.white,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

@@ -2,7 +2,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 const String kDbName = 'xiaoman.db';
-const int kDbVersion = 2;
+const int kDbVersion = 3;
 
 Future<Database> openLedgerDb() async {
   final String path = p.join(await getDatabasesPath(), kDbName);
@@ -53,6 +53,7 @@ const List<String> _schema = <String>[
     source TEXT NOT NULL DEFAULT 'manual',
     external_id TEXT,
     dedup_hash TEXT,
+    in_budget INTEGER NOT NULL DEFAULT 1,
     deleted_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
@@ -95,6 +96,16 @@ const List<String> _schema = <String>[
     note TEXT,
     active INTEGER NOT NULL DEFAULT 1,
     last_run_at INTEGER,
+    created_at INTEGER NOT NULL
+  )
+  ''',
+  '''
+  CREATE TABLE budgets(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope TEXT NOT NULL,
+    category_id INTEGER,
+    amount INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1,
     created_at INTEGER NOT NULL
   )
   ''',
@@ -143,6 +154,28 @@ Future<void> _upgrade(Database db, int oldVersion, int newVersion) async {
         note TEXT,
         active INTEGER NOT NULL DEFAULT 1,
         last_run_at INTEGER,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+  }
+
+  if (oldVersion < 3) {
+    final List<String> columns = <String>[
+      for (final Map<String, Object?> r in await db.rawQuery(
+          'PRAGMA table_info(txns)'))
+        r['name']! as String,
+    ];
+    if (!columns.contains('in_budget')) {
+      await db.execute(
+          'ALTER TABLE txns ADD COLUMN in_budget INTEGER NOT NULL DEFAULT 1');
+    }
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS budgets(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scope TEXT NOT NULL,
+        category_id INTEGER,
+        amount INTEGER NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 1,
         created_at INTEGER NOT NULL
       )
     ''');

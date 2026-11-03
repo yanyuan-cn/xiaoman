@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
-import '../../core/money.dart';
 import '../../data/import/decode.dart';
 import '../../data/import/draft.dart';
 import '../../data/models.dart';
@@ -27,6 +26,7 @@ class _ImportPageState extends State<ImportPage> {
   ImportParse? _parse;
   Map<String, int?> _accountMap = <String, int?>{};
   ImportResult? _result;
+  bool _excludeBudget = false;
 
   @override
   void initState() {
@@ -172,6 +172,7 @@ class _ImportPageState extends State<ImportPage> {
         note: d.note,
         merchant: d.merchant,
         externalId: d.externalId,
+        inBudget: !_excludeBudget,
       ));
     }
     if (items.isEmpty) {
@@ -315,6 +316,19 @@ class _ImportPageState extends State<ImportPage> {
                     ],
                   ),
                 ),
+              const SizedBox(height: 10),
+              CheckboxListTile(
+                value: _excludeBudget,
+                onChanged: (bool? v) =>
+                    setState(() => _excludeBudget = v ?? false),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text('历史账单不计入预算',
+                    style: TextStyle(fontSize: 14)),
+                subtitle: const Text('导入前的旧账不占本月预算额度',
+                    style: TextStyle(fontSize: 11, color: Colors.black38)),
+              ),
               if (_error != null) ...<Widget>[
                 const SizedBox(height: 12),
                 _errorBox(_error!),

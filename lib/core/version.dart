@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '1.0.1';
-const int kAppBuild = 11;
+const String kAppVersion = '1.1.0';
+const int kAppBuild = 13;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,17 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+1.1.0
+· 预算：可设总额、餐饮、购物，自选每月几号或每周重置
+· 首页收支卡片里直接显示预算、已用、剩余，超支标红
+· 每一笔账单都能单独设置是否计入预算
+· 定期扣款：按每月固定日期自动生成账单，还款按转账处理
+· 统计：新增分类饼图与年度统计
+· 新图标
+
+1.0.2
+· 修复 release 包缺少联网权限导致检查更新失败
+
 1.0.1
 · 更新源改用 GitHub Pages 优先，镜像兜底
 · 请求带时间戳，避免 CDN 缓存导致看不到新版

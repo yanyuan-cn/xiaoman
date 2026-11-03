@@ -31,6 +31,15 @@ if ($text -match 'android:label="xiaoman"') {
     Write-Host 'App label updated.' -ForegroundColor Green
 }
 
+if ($text -notmatch 'android.permission.INTERNET') {
+    $text = [regex]::Replace(
+        $text,
+        '(<manifest[^>]*>\r?\n)',
+        "`$1    <uses-permission android:name=`"android.permission.INTERNET`" />`r`n",
+        1)
+    Write-Host 'Internet permission added.' -ForegroundColor Green
+}
+
 if ($text -notmatch 'REQUEST_INSTALL_PACKAGES') {
     $text = [regex]::Replace(
         $text,
@@ -49,6 +58,18 @@ if ($text -notmatch '<queries>') {
 
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($manifest, $text, $utf8NoBom)
+
+# Replace launcher icons (assets/icon/res -> android/app/src/main/res)
+$resSrc = Join-Path $root 'assets\icon\res'
+$resDst = Join-Path $root 'android\app\src\main\res'
+if (Test-Path $resSrc) {
+    Get-ChildItem $resSrc -Directory | ForEach-Object {
+        $target = Join-Path $resDst $_.Name
+        New-Item -ItemType Directory -Force -Path $target | Out-Null
+        Copy-Item (Join-Path $_.FullName '*') $target -Force -Recurse
+    }
+    Write-Host 'App icon updated.' -ForegroundColor Green
+}
 
 Write-Host ''
 Write-Host 'Next:' -ForegroundColor Cyan
