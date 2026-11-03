@@ -1,0 +1,8 @@
+{
+  "versionCode": 13,
+  "versionName": "1.1.0",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.1.0/app-release.apk",
+  "sha256": "B3DD985EF5DBC89C32CC39E1009DD0FC1E9EC0736271BBDCCFB6D4E1D84E92E7",
+  "url": "https://github.com/yanyuan-cn/xiaoman/releases",
+  "notes": "预算、计入预算开关、定期扣款、统计饼图与年度视图、新图标"
+}

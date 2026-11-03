@@ -1,0 +1,79 @@
+git-state.txt
+生成时间：2026-11-04 01:05（北京时间）
+生成环境：Android 手机上的 Ubuntu 24.04 proot，工作目录 /root/workspace/xiaoman
+比对方法：本地文件算 git blob SHA（sha1("blob <len>\0"+内容)），与 GitHub API
+          /repos/yanyuan-cn/xiaoman/git/trees/main?recursive=1 的 blob sha 逐一比较
+
+==================== 结论 ====================
+
+本目录 **不是 git 仓库**（从未 git init），所有上传都通过 GitHub 网页完成，
+所以没有 commit hash / git status / git diff 可提供。
+
+==================== 与远端 main 的比对（2026-11-04 实测）====================
+
+远端 main 共 58 个 blob，本地 58 个（含 1 个不应上传的 version.json）。
+
+  一致               54
+  内容不同            2
+      .github/workflows/android.yml   远端 1,787 字符，缺 INTERNET 注入（本地 2,119 有）
+      analysis_options.yaml           远端更好（多 analyzer.exclude）
+  远端缺              1
+      tools/gen_icon.py
+  本地缺（远端有）    1
+      pubspec.lock                    ← 好事，保留在仓库里
+  刻意不同步          1
+      version.json                    ← 本地是旧的 1.0.2/12，绝不能上传
+
+也就是说：v1.1.0 的 Dart 源码（lib/**）已经和仓库同步了。
+
+==================== 远端 Release 状态 ====================
+
+  v1.1.0   published   assets: app-release.apk (54.7 MB)   ← 当前线上版本
+  v1.0.2   published   assets: app-release.apk (54.2 MB)
+  v1.0.1 / v0.7.1 / v0.7.0 更早
+
+注意：v1.1.0 第一次发布时附件为空，导致应用内更新 404；后来手动补传 APK 才恢复。
+发布后务必点开 Release 确认附件存在。
+
+==================== 远端 version.json（main 根目录，同时由 Pages 提供）====================
+
+  {
+    "versionCode": 13,
+    "versionName": "1.1.0",
+    "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.1.0/app-release.apk",
+    "sha256": "B3DD985EF5DBC89C32CC39E1009DD0FC1E9EC0736271BBDCCFB6D4E1D84E92E7",
+    "url": "https://github.com/yanyuan-cn/xiaoman/releases",
+    "notes": "..."
+  }
+
+GitHub Pages 已开启（main / root）：https://yanyuan-cn.github.io/xiaoman/version.json
+
+==================== 建议动作 ====================
+
+1. 用 reference/android.yml.fixed 覆盖 .github/workflows/android.yml 并提交（见 KNOWN-ISSUES.md I-1）。
+2. 提交 tools/gen_icon.py（I-2）。
+3. 把远端 analysis_options.yaml 拉到本地（I-3）。
+4. 不要提交本地 version.json（I-4）。
+
+==================== 附：可复现的比对命令（在任意能联网的环境）====================
+
+  python3 - <<'PY'
+  import urllib.request, json, hashlib, os
+  tree=json.load(urllib.request.urlopen(
+      "https://api.github.com/repos/yanyuan-cn/xiaoman/git/trees/main?recursive=1"))
+  remote={n['path']:n['sha'] for n in tree['tree'] if n['type']=='blob'}
+  def sha(p):
+      b=open(p,'rb').read()
+      return hashlib.sha1(b"blob %d\0"%len(b)+b).hexdigest()
+  local={}
+  for r,d,fs in os.walk('.'):
+      d[:]=[x for x in d if x not in ('.git','build','.dart_tool','android')]
+      for f in fs:
+          p=os.path.relpath(os.path.join(r,f),'.').replace(os.sep,'/')
+          local[p]=sha(os.path.join(r,f))
+  print("same", sum(1 for k in local if remote.get(k)==local[k]))
+  print("diff", [k for k in local if remote.get(k) not in (None, local[k])])
+  print("missing_remote", [k for k in local if k not in remote])
+  PY
+
+不需要 git 命令，纯 HTTP + 本地哈希。
