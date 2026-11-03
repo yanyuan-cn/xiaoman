@@ -30,7 +30,9 @@ jobs:
           fi
           sed -i 's/android:label="xiaoman"/android:label="小满"/' \
             android/app/src/main/AndroidManifest.xml
-
+          if [ -d assets/icon/res ]; then
+            cp -r assets/icon/res/. android/app/src/main/res/
+          fi
       - name: 设置安装权限
         run: |
           python3 - <<'PY'
