@@ -33,11 +33,17 @@ jobs:
           if [ -d assets/icon/res ]; then
             cp -r assets/icon/res/. android/app/src/main/res/
           fi
-      - name: 设置安装权限
+          - name: 设置安装权限
         run: |
           python3 - <<'PY'
           import pathlib, re
           p = pathlib.Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          if 'android.permission.INTERNET' not in s:
+              s = re.sub(r'(<manifest[^>]*>)',
+                         r'\1\n    <uses-permission android:name="android.permission.INTERNET" />',
+                         s, count=1)
+              p.write_text(s)
           s = p.read_text()
           if 'REQUEST_INSTALL_PACKAGES' not in s:
               s = re.sub(r'(<manifest[^>]*>)',
@@ -45,7 +51,6 @@ jobs:
                          s, count=1)
               p.write_text(s)
           PY
-
       - run: flutter pub get
 
       - name: flutter analyze
