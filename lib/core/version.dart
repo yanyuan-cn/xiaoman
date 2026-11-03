@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '1.1.0';
-const int kAppBuild = 13;
+const String kAppVersion = '1.1.1';
+const int kAppBuild = 14;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,9 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+1.1.1
+· 维护版本：功能与 1.1.0 相同，用于验证发版与应用内更新链路
+
 1.1.0
 · 预算：可设总额、餐饮、购物，自选每月几号或每周重置
 · 首页收支卡片里直接显示预算、已用、剩余，超支标红
