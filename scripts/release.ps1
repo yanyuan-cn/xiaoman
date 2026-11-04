@@ -61,6 +61,19 @@ function Invoke-Git {
     return (Invoke-Native -Exe 'git' -NativeArgs $GitArgs).Output
 }
 
+# API calls: try direct first, fall back to the configured proxy. The proxy on
+# this machine is frequently down, and a dead proxy makes curl fail instantly.
+function Invoke-Curl {
+    param([string[]]$CurlArgs)
+    $direct = Invoke-Native -Exe 'curl.exe' -AllowFail -NativeArgs $CurlArgs
+    if ($direct.Code -eq 0) { return $direct }
+    if ($ProxyArgs.Count -gt 0) {
+        Write-Host '   direct request failed, retrying through the proxy...'
+        return (Invoke-Native -Exe 'curl.exe' -AllowFail -NativeArgs ($ProxyArgs + $CurlArgs))
+    }
+    return $direct
+}
+
 # Network here is flaky: the local proxy comes and goes and direct access drops
 # mid-handshake. Try direct first, then through the configured proxy, a few times.
 function Push-Main {
@@ -155,13 +168,11 @@ Write-Host "   sha256 $sha"
 # ---------- 4. preconditions ----------
 Step 'Remote precondition'
 $token = Get-GitHubToken
-$probe = (Invoke-Native -Exe 'curl.exe' -AllowFail -NativeArgs (
-    $ProxyArgs + @('-sS', '--max-time', '40',
+$probe = (Invoke-Curl -CurlArgs @('-sS', '--max-time', '40',
                    '-H', "Authorization: Bearer $token",
                    '-H', 'Accept: application/vnd.github+json',
                    '-w', "`n%{http_code}",
-                   "https://api.github.com/repos/$RepoSlug/releases/tags/$tag")
-)).Output
+                   "https://api.github.com/repos/$RepoSlug/releases/tags/$tag")).Output
 $probeText = $probe.TrimEnd()
 $probeLines = $probeText -split "`n"
 $httpCode = $probeLines[-1].Trim()
@@ -218,14 +229,12 @@ $payload = [ordered]@{
 }
 [IO.File]::WriteAllText($jsonFile, ($payload | ConvertTo-Json), (New-Object System.Text.UTF8Encoding($false)))
 
-$create = (Invoke-Native -Exe 'curl.exe' -NativeArgs (
-    $ProxyArgs + @('-sS', '--max-time', '60', '-X', 'POST',
+$create = (Invoke-Curl -CurlArgs @('-sS', '--max-time', '60', '-X', 'POST',
                    '-H', "Authorization: Bearer $token",
                    '-H', 'Accept: application/vnd.github+json',
                    '-H', 'Content-Type: application/json',
                    '--data-binary', "@$jsonFile",
-                   "https://api.github.com/repos/$RepoSlug/releases")
-)).Output
+                   "https://api.github.com/repos/$RepoSlug/releases")).Output
 if ($create -notmatch '"id"\s*:\s*(\d+)') { Fail "create release failed: $create" }
 $releaseId = $Matches[1]
 Write-Host "   release $releaseId created"
@@ -237,11 +246,7 @@ $uploadArgs = @('-sS', '--http1.1', '--max-time', '900', '--retry', '2', '-X', '
                 '--data-binary', "@$ApkPath",
                 "https://uploads.github.com/repos/$RepoSlug/releases/$releaseId/assets?name=app-release.apk")
 # 直连优先：经代理传 57MB 实测会卡死，而 uploads.github.com 直连是通的。
-$upload = (Invoke-Native -Exe 'curl.exe' -AllowFail -NativeArgs $uploadArgs).Output
-if ($upload -notmatch '"state"\s*:\s*"uploaded"') {
-    Write-Host '   direct upload failed, retrying through the proxy...'
-    $upload = (Invoke-Native -Exe 'curl.exe' -AllowFail -NativeArgs ($ProxyArgs + $uploadArgs)).Output
-}
+$upload = (Invoke-Curl -CurlArgs $uploadArgs).Output
 if ($upload -notmatch '"state"\s*:\s*"uploaded"') { Fail "upload failed: $upload" }
 if ($upload -notmatch ('"size"\s*:\s*' + $size)) { Fail 'uploaded size does not match local file' }
 Write-Host "   uploaded $size bytes"

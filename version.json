@@ -1,8 +1,8 @@
 {
-  "versionCode": 17,
-  "versionName": "1.4.0",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.4.0/app-release.apk",
-  "sha256": "3B8ED67B14C490EF8E641F702C05FBB5D573D6D8D955C30415FA877048910A45",
+  "versionCode": 18,
+  "versionName": "1.5.0",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.5.0/app-release.apk",
+  "sha256": "036FEFFB5ABE2E20D2F1B8527742A907F0D864EB8A88D5EB481B9B05387613B5",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "新增应用图标切换（深色墨绿 / 浅色方孔钱）；删除改为左滑露出按钮并支持撤销，账户与贷款也可删除；记账改为底部面板；统计图表加入扫入与生长动画；修正底部导航滑块位置。"
+  "notes": "新增搜索筛选（关键字/类型/分类/账户/时间/金额区间）；新增深色模式（跟随系统/浅色/深色）；导入支持 UTF-16 与 GBK 兜底；次级页面统一主题色。"
 }
