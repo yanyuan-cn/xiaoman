@@ -1,0 +1,42 @@
+name: pages
+
+# 只用 GitHub Actions 发布 version.json。
+# 原来的 legacy 构建（Jekyll）在这台仓库上一直报 "Page build failed"，
+# 导致线上 version.json 停在旧版本；这里改成显式发布静态文件，快且可查日志。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 准备站点（只发布 version.json）
+        run: |
+          mkdir -p _site
+          cp version.json _site/version.json
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '1.5.0';
-const int kAppBuild = 18;
+const String kAppVersion = '1.5.1';
+const int kAppBuild = 19;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,10 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+1.5.1
+· 修复检查更新：同时取所有更新源，用版本号最高的那个
+· Pages 改用 GitHub Actions 发布，不再依赖会失效的旧构建
+
 1.5.0
 · 新增搜索：关键字、类型、分类、账户、时间、金额区间都能筛
 · 新增深色模式：跟随系统 / 浅色 / 深色，我的 → 外观

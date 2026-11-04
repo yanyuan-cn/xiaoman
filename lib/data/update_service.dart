@@ -38,7 +38,10 @@ class UpdateException implements Exception {
 }
 
 class UpdateService {
-  /// 依次尝试多个清单地址，返回第一个成功的结果。
+  /// 取**所有**清单里版本号最高的那个，而不是第一个能连上的。
+  ///
+  /// 原因：GitHub Pages 可能因为缓存/构建失败返回旧内容，而镜像（jsdelivr、
+  /// ghproxy）读的是仓库里的最新文件。只看第一个成功的源会被旧内容卡住。
   static Uri _stamped(String url) {
     final Uri u = Uri.parse(url);
     final Map<String, String> q = Map<String, String>.from(u.queryParameters);
@@ -47,25 +50,35 @@ class UpdateService {
   }
 
   static Future<UpdateInfo> fetchLatest({String? overrideUrl}) async {
-    final List<String> urls = <String>[
-      if (overrideUrl != null && overrideUrl.trim().isNotEmpty)
-        overrideUrl.trim(),
-      ...kUpdateManifestUrls,
-    ];
-    for (final String url in urls) {
-      try {
-        final http.Response res =
-            await http.get(_stamped(url)).timeout(const Duration(seconds: 8));
-        if (res.statusCode != 200) continue;
-        final String body = utf8.decode(res.bodyBytes);
-        final Object? decoded = jsonDecode(body);
-        if (decoded is! Map<String, dynamic>) continue;
-        return _parse(decoded);
-      } catch (_) {
-        continue;
-      }
+    // 用户自己指定了源，就只认它（他要的就是这个地址的内容）
+    final String custom = (overrideUrl ?? '').trim();
+    if (custom.isNotEmpty) {
+      final UpdateInfo? one = await _tryOne(custom);
+      if (one != null) return one;
+      throw UpdateException('自定义更新源连接失败：$custom');
     }
-    throw UpdateException('连接失败，已尝试 ${urls.length} 个地址');
+
+    final List<UpdateInfo?> results =
+        await Future.wait(kUpdateManifestUrls.map(_tryOne));
+    final List<UpdateInfo> ok = results.whereType<UpdateInfo>().toList();
+    if (ok.isEmpty) {
+      throw UpdateException('连接失败，已尝试 ${kUpdateManifestUrls.length} 个地址');
+    }
+    ok.sort((UpdateInfo a, UpdateInfo b) => b.versionCode.compareTo(a.versionCode));
+    return ok.first;
+  }
+
+  static Future<UpdateInfo?> _tryOne(String url) async {
+    try {
+      final http.Response res =
+          await http.get(_stamped(url)).timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return null;
+      final Object? decoded = jsonDecode(utf8.decode(res.bodyBytes));
+      if (decoded is! Map<String, dynamic>) return null;
+      return _parse(decoded);
+    } catch (_) {
+      return null;
+    }
   }
 
   static UpdateInfo _parse(Map<String, dynamic> m) {
