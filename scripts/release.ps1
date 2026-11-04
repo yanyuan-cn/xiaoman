@@ -61,6 +61,20 @@ function Invoke-Git {
     return (Invoke-Native -Exe 'git' -NativeArgs $GitArgs).Output
 }
 
+# Network here is flaky: the local proxy comes and goes and direct access drops
+# mid-handshake. Try direct first, then through the configured proxy, a few times.
+function Push-Main {
+    for ($i = 1; $i -le 3; $i++) {
+        $r = Invoke-Native -Exe 'git' -AllowFail -NativeArgs @(
+            '-c', 'http.proxy=', '-c', 'https.proxy=', 'push', 'origin', 'main')
+        if ($r.Code -eq 0) { return }
+        Write-Host "   push attempt $i (direct) failed, retrying..."
+        Start-Sleep -Seconds 5
+    }
+    $r = Invoke-Native -Exe 'git' -AllowFail -NativeArgs @('push', 'origin', 'main')
+    if ($r.Code -ne 0) { Fail "git push failed:`n$($r.Output)" }
+}
+
 $ProxyArgs = @()
 $proxyCfg = (& git config --get http.proxy 2>$null)
 if ($proxyCfg) { $ProxyArgs = @('-x', $proxyCfg.Trim()) }
@@ -185,7 +199,7 @@ if ($bumpDirty) {
 } else {
     Write-Host '   nothing to commit'
 }
-Invoke-Git push origin main | Out-Null
+Push-Main
 Write-Host '   pushed'
 
 # ---------- 6. create release + upload ----------
@@ -252,7 +266,7 @@ Write-Host '   version.json rewritten'
 
 Invoke-Git add version.json | Out-Null
 Invoke-Git commit -m "release: $tag" | Out-Null
-Invoke-Git push origin main | Out-Null
+Push-Main
 Write-Host '   pushed'
 
 Step 'Done'
