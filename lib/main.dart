@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/display.dart';
 import 'core/storage.dart';
+import 'core/theme.dart';
 import 'data/db.dart';
 import 'data/repo.dart';
 import 'features/home/root_page.dart';
@@ -37,11 +38,7 @@ class XiaomanApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3F7D58)),
-        scaffoldBackgroundColor: const Color(0xFFF4F6F4),
-      ),
+      theme: Xm.theme(),
       home: RootPage(repo: repo),
     );
   }

@@ -1,11 +1,19 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 
+import '../../core/theme.dart';
 import '../../data/repo.dart';
+import '../../ui/components.dart';
 import '../assets/assets_page.dart';
 import '../ledger/ledger_page.dart';
 import '../profile/profile_page.dart';
 import '../stats/stats_page.dart';
 
+/// 四页骨架 + 自定义 TabBar（§4.0 / §6.2 C10）。
+///
+/// 页面用 Stack + 位移/透明度切换，而不是整页翻走：
+/// 非活动页停在 ±22% 处并淡出，保留各自的滚动位置与状态。
 class RootPage extends StatefulWidget {
   const RootPage({super.key, required this.repo});
 
@@ -18,43 +26,199 @@ class RootPage extends StatefulWidget {
 class _RootPageState extends State<RootPage> {
   int _index = 0;
 
+  static const List<_TabSpec> _tabs = <_TabSpec>[
+    _TabSpec('首页', Icons.home_outlined, Icons.home),
+    _TabSpec('资产', Icons.account_balance_wallet_outlined,
+        Icons.account_balance_wallet),
+    _TabSpec('统计', Icons.pie_chart_outline, Icons.pie_chart),
+    _TabSpec('我的', Icons.person_outline, Icons.person),
+  ];
+
+  void _select(int i) {
+    if (i == _index) return;
+    setState(() => _index = i);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final List<Widget> pages = <Widget>[
+      LedgerPage(repo: widget.repo),
+      AssetsPage(repo: widget.repo),
+      StatsPage(repo: widget.repo),
+      ProfilePage(repo: widget.repo),
+    ];
+
     return Scaffold(
-      body: IndexedStack(
-        index: _index,
+      backgroundColor: Xm.bg,
+      body: Stack(
         children: <Widget>[
-          LedgerPage(repo: widget.repo),
-          AssetsPage(repo: widget.repo),
-          StatsPage(repo: widget.repo),
-          ProfilePage(repo: widget.repo),
+          for (int i = 0; i < pages.length; i++)
+            IgnorePointer(
+              ignoring: i != _index,
+              child: AnimatedOpacity(
+                opacity: i == _index ? 1 : 0,
+                duration: const Duration(milliseconds: 420),
+                curve: XmEase.e2,
+                child: AnimatedSlide(
+                  // 左侧的页停在 -22%，右侧的停在 +22%（§5.4.2）
+                  offset: i == _index
+                      ? Offset.zero
+                      : Offset(i < _index ? -0.22 : 0.22, 0),
+                  duration: const Duration(milliseconds: 420),
+                  curve: XmEase.e2,
+                  // 页面背景不能透明，否则切换会闪白（§7.2 坑 4）
+                  child: ColoredBox(color: Xm.bg, child: pages[i]),
+                ),
+              ),
+            ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _TabBar(
+              index: _index,
+              tabs: _tabs,
+              onTap: _select,
+            ),
+          ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (int i) => setState(() => _index = i),
-        destinations: const <NavigationDestination>[
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long),
-            label: '首页',
+    );
+  }
+}
+
+class _TabSpec {
+  const _TabSpec(this.label, this.icon, this.activeIcon);
+
+  final String label;
+  final IconData icon;
+  final IconData activeIcon;
+}
+
+class _TabBar extends StatelessWidget {
+  const _TabBar({
+    required this.index,
+    required this.tabs,
+    required this.onTap,
+  });
+
+  final int index;
+  final List<_TabSpec> tabs;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final double bottomInset = MediaQuery.paddingOf(context).bottom;
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          padding: EdgeInsets.only(bottom: bottomInset),
+          decoration: const BoxDecoration(
+            color: Color(0xDBFAFBF9), // rgba(250,251,249,.86)
+            border: Border(top: BorderSide(color: Color(0x0F12211A), width: 1)),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon: Icon(Icons.account_balance_wallet),
-            label: '资产',
+          child: SizedBox(
+            height: 80,
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints c) {
+                final double slot = c.maxWidth / tabs.length;
+                const double pillW = 52;
+                const double pillH = 30;
+                return Stack(
+                  children: <Widget>[
+                    // 滑块是**一个**元素在四个位置间移动（§6.2 C10）
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 400),
+                      curve: XmEase.e3,
+                      left: slot * index + (slot - pillW) / 2,
+                      top: 10,
+                      width: pillW,
+                      height: pillH,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Xm.brandL,
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: <Widget>[
+                        for (int i = 0; i < tabs.length; i++)
+                          Expanded(
+                            child: _TabItem(
+                              spec: tabs[i],
+                              selected: i == index,
+                              onTap: () => onTap(i),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.pie_chart_outline),
-            selectedIcon: Icon(Icons.pie_chart),
-            label: '统计',
+        ),
+      ),
+    );
+  }
+}
+
+class _TabItem extends StatelessWidget {
+  const _TabItem({
+    required this.spec,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _TabSpec spec;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color = selected ? Xm.brand : Xm.ink3;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: spec.label,
+      child: InkResponse(
+        onTap: onTap,
+        radius: 44,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              AnimatedSlide(
+                duration: const Duration(milliseconds: 340),
+                curve: XmEase.e4,
+                offset: selected ? const Offset(0, -0.06) : Offset.zero,
+                child: AnimatedScale(
+                  duration: const Duration(milliseconds: 340),
+                  curve: XmEase.e4,
+                  scale: selected ? 1.06 : 1,
+                  child: Icon(
+                    selected ? spec.activeIcon : spec.icon,
+                    size: 22,
+                    color: color,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                spec.label,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  letterSpacing: 0.3,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  color: color,
+                ),
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: '我的',
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../core/dates.dart';
 import '../../core/money.dart';
+import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
 import '../../state/data_bus.dart';
 import '../../state/ledger.dart';
+import '../../ui/components.dart';
 import '../budget/budget_page.dart';
 import '../detail/txn_detail_page.dart';
 import '../import/import_page.dart';
@@ -132,6 +134,15 @@ class _LedgerPageState extends State<LedgerPage> {
     );
   }
 
+  Future<void> _openBudget() async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (BuildContext _) => BudgetPage(repo: widget.repo),
+      ),
+    );
+    if (mounted) await _state.load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -139,20 +150,21 @@ class _LedgerPageState extends State<LedgerPage> {
       builder: (BuildContext context, Widget? child) {
         return Scaffold(
           appBar: AppBar(
-            title: const Text('小满',
-                style: TextStyle(fontWeight: FontWeight.w600, letterSpacing: 2)),
+            // 首页标题是品牌名，不是"首页"（§4.1）
+            title: const Text('小满'),
             actions: <Widget>[
-              IconButton(
-                tooltip: '刷新',
-                onPressed: _state.loading ? null : () => _state.load(),
-                icon: const Icon(Icons.refresh),
-              ),
+              _iconButton(Icons.refresh_rounded, '刷新',
+                  _state.loading ? null : () => _state.load()),
+              const SizedBox(width: 6),
               PopupMenuButton<String>(
+                tooltip: '更多',
+                icon: const Icon(Icons.more_horiz_rounded),
                 onSelected: (String value) {
                   if (value == 'import') _openImport();
                   if (value == 'undo') _undoImport();
                 },
-                itemBuilder: (BuildContext ctx) => const <PopupMenuEntry<String>>[
+                itemBuilder: (BuildContext ctx) =>
+                    const <PopupMenuEntry<String>>[
                   PopupMenuItem<String>(
                     value: 'import',
                     child: Text('导入账单'),
@@ -163,107 +175,221 @@ class _LedgerPageState extends State<LedgerPage> {
                   ),
                 ],
               ),
+              const SizedBox(width: 8),
             ],
           ),
           body: Column(
             children: <Widget>[
-              _monthBar(),
-              _summaryCard(),
-              Expanded(child: _list()),
+              _periodBar(),
+              Expanded(child: _content()),
             ],
-          ),
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: _openRecord,
-            icon: const Icon(Icons.add),
-            label: const Text('记一笔'),
           ),
         );
       },
     );
   }
 
-  Widget _monthBar() {
+  Widget _iconButton(IconData icon, String tooltip, VoidCallback? onTap) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onTap,
+      icon: Icon(icon, size: 20),
+      style: IconButton.styleFrom(
+        foregroundColor: Xm.ink2,
+        minimumSize: const Size(34, 34),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _periodBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
+      padding: const EdgeInsets.fromLTRB(20, 2, 20, 14),
       child: Row(
         children: <Widget>[
-          IconButton(
-            onPressed: () => _state.shiftMonth(-1),
-            icon: const Icon(Icons.chevron_left),
-          ),
-          Text(
-            fmtMonth(_state.month),
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-          IconButton(
-            onPressed: () => _state.shiftMonth(1),
-            icon: const Icon(Icons.chevron_right),
-          ),
-          const Spacer(),
-          TextButton(
-            onPressed: () => _state.backToThisMonth(),
-            child: const Text('本月'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _summaryCard() {
-    final bool showBudget = _state.isCurrentPeriod && !_state.loading;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF3F7D58),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: <Widget>[
+          _circleButton(Icons.chevron_left_rounded, () => _state.shiftMonth(-1)),
           Padding(
-            padding: EdgeInsets.fromLTRB(0, 16, 0, showBudget ? 10 : 16),
-            child: Row(
-              children: <Widget>[
-                _stat('支出', formatCents(_state.summary.expense), Colors.white),
-                _stat('收入', formatCents(_state.summary.income), Colors.white),
-                _stat('结余', formatCents(_state.summary.net),
-                    const Color(0xFFFFE08A)),
-              ],
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              fmtMonth(_state.month),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.1,
+                color: Xm.ink,
+              ),
             ),
           ),
-          if (showBudget) _budgetSection(),
+          _circleButton(
+              Icons.chevron_right_rounded, () => _state.shiftMonth(1)),
+          const Spacer(),
+          GestureDetector(
+            onTap: () => _state.backToThisMonth(),
+            child: const XmTag('本月'),
+          ),
         ],
       ),
     );
   }
 
-  Future<void> _openBudget() async {
-    await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (BuildContext _) => BudgetPage(repo: widget.repo),
+  Widget _circleButton(IconData icon, VoidCallback onTap) {
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: IconButton(
+        onPressed: onTap,
+        padding: EdgeInsets.zero,
+        iconSize: 18,
+        icon: Icon(icon),
+        style: IconButton.styleFrom(foregroundColor: Xm.ink2),
       ),
     );
-    if (mounted) await _state.load();
   }
 
-  Widget _budgetSection() {
+  Widget _content() {
+    return Stack(
+      children: <Widget>[
+        if (_state.loading && _state.txns.isEmpty)
+          const Center(child: CircularProgressIndicator())
+        else
+          _list(),
+        Positioned(right: 18, bottom: 94, child: _fab()),
+      ],
+    );
+  }
+
+  Widget _list() {
+    final Map<int, Account> acc = _state.accountById;
+    final Map<int, TxnCategory> cat = _state.categoryById;
+
+    final List<Widget> children = <Widget>[
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: _hero()),
+    ];
+
+    if (_state.txns.isEmpty) {
+      children.add(_empty());
+    } else {
+      String? lastKey;
+      List<Widget> rows = <Widget>[];
+      int i = 0;
+
+      for (final Txn t in _state.txns) {
+        final DateTime d = t.occurredAt;
+        final String key = fmtDayKey(d);
+        if (key != lastKey) {
+          if (rows.isNotEmpty) {
+            children.add(_dayCard(rows));
+            rows = <Widget>[];
+          }
+          lastKey = key;
+          children.add(_dayHeader(d, _dayExpense(d)));
+        }
+        rows.add(XmEntrance(
+          index: i++,
+          step: 55,
+          base: 80,
+          offsetY: 10,
+          child: _row(t, acc, cat, first: rows.isEmpty),
+        ));
+      }
+      if (rows.isNotEmpty) children.add(_dayCard(rows));
+    }
+
+    children.add(const SizedBox(height: 96));
+
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: children,
+    );
+  }
+
+  Widget _dayCard(List<Widget> rows) => XmCard(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+        child: Column(children: rows),
+      );
+
+  int _dayExpense(DateTime day) {
+    int sum = 0;
+    for (final Txn t in _state.txns) {
+      if (t.isExpense &&
+          !t.isTransfer &&
+          fmtDayKey(t.occurredAt) == fmtDayKey(day)) {
+        sum += t.amount;
+      }
+    }
+    return sum;
+  }
+
+  Widget _hero() {
+    final bool showBudget = _state.isCurrentPeriod && !_state.loading;
+    final MonthSummary s = _state.summary;
+
+    return XmHeroCard(
+      margin: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: <Widget>[
+              _heroStat('支出', formatCents(s.expense), Colors.white,
+                  CrossAxisAlignment.start),
+              _heroStat('收入', formatCents(s.income), Colors.white,
+                  CrossAxisAlignment.center),
+              _heroStat('结余', formatCents(s.net), Xm.goldOnDark,
+                  CrossAxisAlignment.end),
+            ],
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Divider(height: 1, thickness: 1, color: Xm.onDarkLine),
+          ),
+          _budgetSection(showBudget),
+        ],
+      ),
+    );
+  }
+
+  Widget _heroStat(
+      String label, String value, Color color, CrossAxisAlignment align) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: align,
+        children: <Widget>[
+          Text(label, style: Xm.onDarkLabelStyle),
+          const SizedBox(height: 7),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: align == CrossAxisAlignment.start
+                ? Alignment.centerLeft
+                : (align == CrossAxisAlignment.end
+                    ? Alignment.centerRight
+                    : Alignment.center),
+            child: XmAmount(
+              text: value,
+              style: Xm.amountS.copyWith(color: color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _budgetSection(bool showBudget) {
+    if (!showBudget) return const SizedBox.shrink();
+
     final LedgerState s = _state;
     if (!s.hasBudget) {
       return InkWell(
         onTap: _openBudget,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 12, 14),
+          padding: const EdgeInsets.only(bottom: 2),
           child: Row(
             children: <Widget>[
-              Text(
-                '设置预算，看看每月还能花多少',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white.withValues(alpha: 0.8),
-                ),
-              ),
+              Text('设置预算，看看每月还能花多少',
+                  style: Xm.text(11.5, FontWeight.w400, color: Xm.onDarkNote)),
               const Spacer(),
-              Icon(Icons.chevron_right,
-                  size: 18, color: Colors.white.withValues(alpha: 0.8)),
+              const Icon(Icons.chevron_right_rounded,
+                  size: 18, color: Xm.onDarkNote),
             ],
           ),
         ),
@@ -275,244 +401,184 @@ class _LedgerPageState extends State<LedgerPage> {
     final int remaining = total - used;
     final double ratio =
         total <= 0 ? 0 : (used / total).clamp(0.0, 1.0).toDouble();
-    final Color remainColor = remaining < 0
-        ? const Color(0xFFFF8A80)
-        : const Color(0xFFFFE08A);
+    final bool overdue = remaining < 0;
 
     return InkWell(
       onTap: _openBudget,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Divider(height: 1, color: Colors.white.withValues(alpha: 0.18)),
-            const SizedBox(height: 10),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: <Widget>[
-                Text(
-                  total > 0 ? '预算 ¥${formatCents(total)}' : '预算',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: <Widget>[
+              Text(
+                '预算 ¥${formatCents(total)}',
+                style: Xm.text(11.5, FontWeight.w400, color: Xm.onDarkNote),
+              ),
+              const SizedBox(width: 10),
+              const Spacer(),
+              Text(
+                overdue ? '超支 ¥${formatCents(-remaining)}'
+                    : '剩余 ¥${formatCents(remaining)}',
+                style: Xm.amountXS.copyWith(
+                  color: overdue ? const Color(0xFFFF9B90) : Xm.goldOnDark,
                 ),
-                const Spacer(),
-                if (total > 0)
-                  Text(
-                    remaining < 0
-                        ? '超支 ¥${formatCents(-remaining)}'
-                        : '剩余 ¥${formatCents(remaining)}',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: remainColor,
-                    ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 11),
+            child: XmProgressBar(
+              value: ratio,
+              height: 6,
+              overdue: overdue,
+              track: Colors.white.withValues(alpha: 0.16),
+            ),
+          ),
+          if (s.budgetFood > 0 || s.budgetShop > 0) ...<Widget>[
+            const SizedBox(height: 2),
+            Row(
+              children: <Widget>[
+                if (s.budgetFood > 0)
+                  Expanded(
+                    child: _miniBudget('餐饮', s.budgetSpentFood, s.budgetFood),
+                  ),
+                if (s.budgetFood > 0 && s.budgetShop > 0)
+                  const SizedBox(width: 16),
+                if (s.budgetShop > 0)
+                  Expanded(
+                    child: _miniBudget('购物', s.budgetSpentShop, s.budgetShop),
                   ),
               ],
             ),
-            if (total > 0) ...<Widget>[
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: LinearProgressIndicator(
-                  value: ratio,
-                  minHeight: 5,
-                  backgroundColor: Colors.white.withValues(alpha: 0.22),
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    remaining < 0 ? const Color(0xFFFF8A80) : Colors.white,
-                  ),
-                ),
-              ),
-            ],
-            if (s.budgetFood > 0 || s.budgetShop > 0) ...<Widget>[
-              const SizedBox(height: 10),
-              Row(
-                children: <Widget>[
-                  if (s.budgetFood > 0)
-                    Expanded(
-                      child: _miniBudget(
-                          '餐饮', s.budgetSpentFood, s.budgetFood),
-                    ),
-                  if (s.budgetFood > 0 && s.budgetShop > 0)
-                    const SizedBox(width: 16),
-                  if (s.budgetShop > 0)
-                    Expanded(
-                      child: _miniBudget(
-                          '购物', s.budgetSpentShop, s.budgetShop),
-                    ),
-                ],
-              ),
-            ],
           ],
-        ),
+        ],
       ),
     );
   }
 
   Widget _miniBudget(String label, int used, int total) {
     final int remain = total - used;
-    final double ratio = (used / total).clamp(0.0, 1.0).toDouble();
+    final bool overdue = remain < 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
+        Text(label,
+            style: Xm.text(11, FontWeight.w400, color: Xm.onDarkNote)),
+        const SizedBox(height: 3),
         Row(
           children: <Widget>[
-            Text(label,
-                style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.75))),
-            const SizedBox(width: 6),
+            Text('余',
+                style: Xm.text(11, FontWeight.w500, color: Xm.onDarkNote)),
+            const SizedBox(width: 3),
             Text(
-              remain < 0
-                  ? '超 ¥${formatCents(-remain)}'
-                  : '余 ¥${formatCents(remain)}',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: remain < 0
-                    ? const Color(0xFFFF8A80)
-                    : Colors.white.withValues(alpha: 0.9),
-              ),
+              '¥${formatCents(remain.abs())}',
+              style: Xm.text(13, FontWeight.w600,
+                  color: overdue ? const Color(0xFFFF9B90) : Xm.onDarkStrong,
+                  tabular: true),
             ),
           ],
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(2),
-          child: LinearProgressIndicator(
-            value: ratio,
-            minHeight: 3,
-            backgroundColor: Colors.white.withValues(alpha: 0.18),
-            valueColor: AlwaysStoppedAnimation<Color>(
-              remain < 0 ? const Color(0xFFFF8A80) : Colors.white,
-            ),
-          ),
         ),
       ],
     );
   }
 
-  Widget _stat(String label, String value, Color color) {
-    return Expanded(
-      child: Column(
+  Widget _dayHeader(DateTime d, int expense) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 14, 22, 8),
+      child: Row(
         children: <Widget>[
-          Text(label,
-              style: TextStyle(
-                  fontSize: 12, color: Colors.white.withValues(alpha: 0.75))),
-          const SizedBox(height: 6),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              '¥$value',
-              style: TextStyle(
-                  fontSize: 17, fontWeight: FontWeight.w600, color: color),
-            ),
+          Text(
+            '${fmtMonthDay(d)} · ${fmtWeekday(d)}',
+            style: Xm.caption,
           ),
+          const Spacer(),
+          if (expense > 0)
+            Text('支出 ¥${formatCents(expense)}', style: Xm.captionS),
         ],
       ),
     );
   }
 
-  Widget _list() {
-    if (_state.loading && _state.txns.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_state.txns.isEmpty) return _empty();
-
-    final Map<int, Account> acc = _state.accountById;
-    final Map<int, TxnCategory> cat = _state.categoryById;
-    final List<Widget> items = <Widget>[];
-    String? lastKey;
-    for (final Txn t in _state.txns) {
-      final DateTime d = t.occurredAt;
-      final String key = fmtDayKey(d);
-      if (key != lastKey) {
-        lastKey = key;
-        items.add(_dayHeader(d));
-      }
-      items.add(_row(t, acc, cat));
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 100),
-      itemCount: items.length,
-      itemBuilder: (BuildContext context, int i) => items[i],
-    );
-  }
-
-  Widget _dayHeader(DateTime d) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-      child: Text(
-        '${fmtMonthDay(d)} ${fmtWeekday(d)}',
-        style: const TextStyle(fontSize: 12, color: Colors.black45),
-      ),
-    );
-  }
-
-  Widget _row(Txn t, Map<int, Account> acc, Map<int, TxnCategory> cat) {
+  Widget _row(Txn t, Map<int, Account> acc, Map<int, TxnCategory> cat,
+      {bool first = false}) {
     final TxnCategory? c = t.categoryId == null ? null : cat[t.categoryId];
     final Account? a = acc[t.accountId];
     final Account? to = t.toAccountId == null ? null : acc[t.toAccountId];
 
     String title;
     String sub;
-    String amountText;
+    String amount;
     Color amountColor;
+    String glyph;
 
     if (t.isTransfer) {
       title = '转账';
       sub = '${a?.name ?? '未知'} → ${to?.name ?? '未知'}';
       if ((t.note ?? '').isNotEmpty) sub = '$sub · ${t.note}';
-      amountText = '¥${formatCents(t.amount)}';
-      amountColor = Colors.black54;
+      amount = formatCents(t.amount);
+      amountColor = Xm.ink2;
+      glyph = '转';
     } else {
       final TxnCategory? parent =
           (c == null || c.parentId == null) ? null : cat[c.parentId!];
-      title = parent == null ? (c?.name ?? '未分类') : '${parent.name} · ${c!.name}';
+      final String catName = parent?.name ?? c?.name ?? '未分类';
+      title = (c == null || parent == null) ? catName : '${parent.name} · ${c.name}';
       final List<String> parts = <String>[
         if (a != null) a.name,
         if ((t.note ?? '').isNotEmpty) t.note!,
       ];
       sub = parts.isEmpty ? fmtDateTime(t.occurredAt) : parts.join(' · ');
-      amountText = '${t.isExpense ? '-' : '+'}¥${formatCents(t.amount)}';
-      amountColor = t.isExpense ? Colors.black87 : const Color(0xFF2E7D32);
+      amount = '${t.isExpense ? '-' : '+'}${formatCents(t.amount)}';
+      amountColor = t.isExpense ? Xm.ink : Xm.income;
+      glyph = catName;
     }
 
-    return InkWell(
-      onTap: () => _openDetail(t),
-      onLongPress: () => _onDelete(t),
-      child: Container(
-        color: Colors.white,
-        margin: const EdgeInsets.only(bottom: 1),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _openDetail(t),
+        onLongPress: () => _onDelete(t),
+        child: Column(
           children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(title,
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 2),
-                  Text(
-                    sub.isEmpty ? fmtDateTime(t.occurredAt) : sub,
-                    style: const TextStyle(fontSize: 12, color: Colors.black45),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              amountText,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: amountColor,
+            if (!first) const XmDivider(),
+            SizedBox(
+              height: 66,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: <Widget>[
+                    XmIconBlock.char(glyph),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Xm.body,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            sub,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Xm.captionS,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      amount,
+                      style: Xm.bodyM.copyWith(color: amountColor),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -521,18 +587,61 @@ class _LedgerPageState extends State<LedgerPage> {
     );
   }
 
+  Widget _fab() {
+    return Semantics(
+      button: true,
+      label: '记一笔',
+      child: GestureDetector(
+        onTap: _openRecord,
+        child: Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            gradient: Xm.buttonGradient,
+            borderRadius: BorderRadius.circular(Xm.rHero),
+            boxShadow: Xm.fabShadow,
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(Icons.add_rounded, size: 20, color: Colors.white),
+              SizedBox(width: 7),
+              Text(
+                '记一笔',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.4,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _empty() {
-    return Center(
+    return Padding(
+      padding: const EdgeInsets.only(top: 60),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          const Icon(Icons.receipt_long_outlined, size: 56, color: Colors.black12),
-          const SizedBox(height: 12),
-          const Text('这个月还没有记录',
-              style: TextStyle(color: Colors.black45, fontSize: 14)),
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: Xm.brandLL,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: const Icon(Icons.receipt_long_outlined,
+                size: 28, color: Xm.brand),
+          ),
+          const SizedBox(height: 14),
+          const Text('这个月还没有记录', style: TextStyle(fontSize: 14, color: Xm.ink2)),
           const SizedBox(height: 4),
           const Text('点右下角「记一笔」开始',
-              style: TextStyle(fontSize: 12, color: Colors.black26)),
+              style: TextStyle(fontSize: 12, color: Xm.ink3)),
         ],
       ),
     );

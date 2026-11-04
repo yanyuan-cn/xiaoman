@@ -3,17 +3,19 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/money.dart';
+import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
 import '../../state/data_bus.dart';
 
+/// 分类配色：从品牌绿出发，越往后越淡，最后用哑光金收尾（§2.1）。
 const List<Color> _kPalette = <Color>[
-  Color(0xFF3F7D58),
-  Color(0xFF6B9E7B),
-  Color(0xFFA3C1AC),
-  Color(0xFFE0B15A),
-  Color(0xFFC97C5D),
-  Color(0xFF8E9AA8),
+  Color(0xFF2F6B4F),
+  Color(0xFF4C8E6D),
+  Color(0xFF7FAE93),
+  Color(0xFFB7D5C2),
+  Color(0xFFB08442),
+  Color(0xFF9AA8A0),
 ];
 
 class StatsPage extends StatefulWidget {
@@ -26,7 +28,7 @@ class StatsPage extends StatefulWidget {
 }
 
 class _StatsPageState extends State<StatsPage> {
-  static const Color _green = Color(0xFF3F7D58);
+  static const Color _green = Xm.brand;
 
   String _mode = 'month';
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);

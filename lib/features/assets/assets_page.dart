@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../core/money.dart';
+import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
 import '../../state/data_bus.dart';
+import '../../ui/components.dart';
 import '../account/account_detail_page.dart';
 
 class AssetsPage extends StatefulWidget {
@@ -88,8 +90,9 @@ class _AssetsPageState extends State<AssetsPage> {
           IconButton(
             tooltip: '新增账户',
             onPressed: () => _openAccount(null),
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add_rounded, size: 22),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: _loading
@@ -97,25 +100,29 @@ class _AssetsPageState extends State<AssetsPage> {
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                padding: EdgeInsets.zero,
                 children: <Widget>[
-                  _netCard(net, totalAsset, totalLiability),
-                  const SizedBox(height: 18),
-                  _sectionTitle('资产'),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+                    child: _netCard(net, totalAsset, totalLiability),
+                  ),
+                  XmSectionTitle('资产', subtitle: '${assets.length} 个账户'),
                   if (assets.isEmpty)
                     _emptyHint('还没有资产账户')
                   else
-                    for (final Account a in assets) _tile(a),
+                    _accountCard(assets),
                   const SizedBox(height: 18),
-                  _sectionTitle('负债'),
+                  XmSectionTitle('负债', subtitle: '${liabilities.length} 个账户'),
                   if (liabilities.isEmpty)
                     _emptyHint('还没有负债项目')
                   else
-                    for (final Account a in liabilities) _tile(a),
-                  const SizedBox(height: 16),
-                  const Text(
-                    '余额 = 期初余额 + 收入 − 支出；负债记为负数，还款会减少欠款',
-                    style: TextStyle(fontSize: 11, color: Colors.black38),
+                    _accountCard(liabilities),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(22, 18, 22, 96),
+                    child: Text(
+                      '余额 = 期初余额 + 收入 − 支出；负债记为负数，还款会减少欠款',
+                      style: TextStyle(fontSize: 11, color: Xm.ink3),
+                    ),
                   ),
                 ],
               ),
@@ -124,30 +131,44 @@ class _AssetsPageState extends State<AssetsPage> {
   }
 
   Widget _netCard(int net, int asset, int liability) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFF3F7D58),
-        borderRadius: BorderRadius.circular(16),
-      ),
+    return XmHeroCard(
+      variant: XmHeroVariant.assets,
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Text('净资产',
-              style: TextStyle(fontSize: 12, color: Colors.white70)),
-          const SizedBox(height: 8),
-          Text('¥${formatCents(net)}',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w600,
-                color: net < 0 ? const Color(0xFFFFD7D2) : Colors.white,
-              )),
-          const SizedBox(height: 12),
+          const Text(
+            '净资产',
+            style: TextStyle(
+              fontSize: 12,
+              letterSpacing: 0.6,
+              color: Xm.onDarkLabel,
+            ),
+          ),
+          const SizedBox(height: 10),
+          // 36dp 金额必须给足高度，否则会被卡片裁切（§7.2 坑 1）
+          SizedBox(
+            height: 40,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: XmAmount(
+                  text: formatCents(net),
+                  style: Xm.display.copyWith(
+                    color: net < 0 ? const Color(0xFFFFC9C2) : Colors.white,
+                  ),
+                  currencyScale: 0.58,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Row(
             children: <Widget>[
-              _miniStat('总资产', asset),
-              const SizedBox(width: 20),
-              _miniStat('总负债', liability),
+              _foot('总资产', asset),
+              const SizedBox(width: 22),
+              _foot('总负债', liability),
             ],
           ),
         ],
@@ -155,34 +176,47 @@ class _AssetsPageState extends State<AssetsPage> {
     );
   }
 
-  Widget _miniStat(String label, int value) {
-    return Row(
+  Widget _foot(String label, int value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text('$label ',
-            style: const TextStyle(fontSize: 11, color: Colors.white70)),
-        Text('¥${formatCents(value)}',
-            style: const TextStyle(fontSize: 13, color: Colors.white)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11.5,
+            color: Xm.onDarkNote,
+            letterSpacing: 0.3,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '¥${formatCents(value)}',
+          style: Xm.text(14, FontWeight.w600,
+              spacing: -0.2, color: Colors.white, tabular: true),
+        ),
       ],
-    );
-  }
-
-  Widget _sectionTitle(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8, left: 4),
-      child: Text(text,
-          style: const TextStyle(fontSize: 12, color: Colors.black45)),
     );
   }
 
   Widget _emptyHint(String text) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-      child: Text(text,
-          style: const TextStyle(fontSize: 12, color: Colors.black26)),
+      padding: const EdgeInsets.fromLTRB(22, 0, 22, 6),
+      child: Text(text, style: const TextStyle(fontSize: 12, color: Xm.ink3)),
     );
   }
 
-  Widget _tile(Account a) {
+  Widget _accountCard(List<Account> list) {
+    final List<Widget> rows = <Widget>[];
+    for (int i = 0; i < list.length; i++) {
+      rows.add(_row(list[i], first: i == 0));
+    }
+    return XmCard(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(children: rows),
+    );
+  }
+
+  Widget _row(Account a, {bool first = false}) {
     final int balance = _balance(a);
     final int shown = a.isLiability ? -balance : balance;
     final String sub = <String>[
@@ -190,51 +224,67 @@ class _AssetsPageState extends State<AssetsPage> {
       if (!a.includeInTotal) '不计入总资产',
     ].join(' · ');
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         onTap: () => _openAccount(a),
-        leading: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: const Color(0xFFEAF2ED),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(
-            a.isLiability
-                ? Icons.credit_card_off_outlined
-                : Icons.account_balance_wallet_outlined,
-            size: 18,
-            color: const Color(0xFF3F7D58),
-          ),
-        ),
-        title: Text(a.name,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Text(sub,
-              style: const TextStyle(fontSize: 11, color: Colors.black38)),
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        child: Column(
           children: <Widget>[
-            Text(
-              '¥${formatCents(shown)}',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: shown < 0 ? const Color(0xFFB3261E) : Colors.black87,
+            if (!first) const XmDivider(indent: 63),
+            SizedBox(
+              height: 63,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: <Widget>[
+                    XmIconBlock.icon(
+                      a.isLiability
+                          ? Icons.credit_card_off_outlined
+                          : Icons.account_balance_wallet_outlined,
+                      size: 34,
+                      iconSize: 18,
+                    ),
+                    const SizedBox(width: 13),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(a.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Xm.body),
+                          const SizedBox(height: 2),
+                          Text(sub,
+                              style: const TextStyle(
+                                  fontSize: 11.5, color: Xm.ink3)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: <Widget>[
+                        Text(
+                          '¥${formatCents(shown)}',
+                          style: Xm.bodyM.copyWith(
+                            color: shown < 0 ? Xm.expense : Xm.ink,
+                          ),
+                        ),
+                        if (a.isLiability)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 2),
+                            child: Text('待还',
+                                style: TextStyle(
+                                    fontSize: 10.5, color: Xm.ink3)),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-            if (a.isLiability)
-              const Text('待还',
-                  style: TextStyle(fontSize: 10, color: Colors.black38)),
           ],
         ),
       ),

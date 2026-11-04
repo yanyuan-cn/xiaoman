@@ -7,12 +7,14 @@ import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/storage.dart';
+import '../../core/theme.dart';
 import '../../core/version.dart';
 import '../../data/models.dart';
 import '../../data/apk_updater.dart';
 import '../../data/repo.dart';
 import '../../data/update_service.dart';
 import '../../state/data_bus.dart';
+import '../../ui/components.dart';
 import '../budget/budget_page.dart';
 import '../categories/categories_page.dart';
 import '../import/import_page.dart';
@@ -570,102 +572,167 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       appBar: AppBar(title: const Text('我的')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+        padding: EdgeInsets.zero,
         children: <Widget>[
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: const Color(0xFF3F7D58),
-              borderRadius: BorderRadius.circular(16),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+            child: _profileCard(),
+          ),
+          const XmSectionTitle('数据', group: true),
+          _menuCard(<Widget>[
+            _tile(Icons.upload_file_outlined, '导入账单', _openImport, first: true),
+            _tile(Icons.pie_chart_outline, '预算', _openBudget),
+            _tile(Icons.event_repeat_outlined, '定期扣款', _openRecurring),
+            _tile(Icons.undo_rounded, '撤销上次导入', _undoImport),
+            _tile(Icons.category_outlined, '分类管理', _openCategories),
+            _tile(Icons.file_download_outlined, '导出流水 CSV', _exportCsv),
+            _tile(Icons.backup_outlined, '备份为 JSON', _exportJson),
+            _tile(Icons.settings_backup_restore, '从备份恢复', _restoreBackup),
+            _tile(Icons.cleaning_services_outlined, '存储占用', _showStorage),
+          ]),
+          const SizedBox(height: 14),
+          const XmSectionTitle('关于', group: true),
+          _menuCard(<Widget>[
+            _tile(
+              Icons.system_update_alt,
+              _checking ? '正在检查…' : '检查更新',
+              _checking ? null : _checkUpdate,
+              first: true,
             ),
+            _tile(
+              Icons.cloud_outlined,
+              '更新源',
+              _editUpdateUrl,
+              subtitle: (_updateUrl == null || _updateUrl!.isEmpty)
+                  ? '默认（自动尝试多个地址）'
+                  : _updateUrl!,
+            ),
+            _tile(Icons.article_outlined, '更新日志', _showChangelog),
+            _tile(Icons.info_outline, '开源地址', () => _openUrl(kRepoUrl)),
+          ]),
+          const SizedBox(height: 20),
+          const Center(
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                const CircleAvatar(
-                  radius: 22,
-                  backgroundColor: Colors.white24,
-                  child: Text('满',
-                      style: TextStyle(color: Colors.white, fontSize: 18)),
-                ),
-                const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const Text(kAppName,
-                        style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white)),
-                    const SizedBox(height: 4),
-                    Text('版本 $kAppVersion ($kAppBuild)',
-                        style: const TextStyle(
-                            fontSize: 12, color: Colors.white70)),
-                  ],
-                ),
+                Icon(Icons.shield_outlined, size: 13, color: Xm.ink3),
+                SizedBox(width: 5),
+                Text('数据只保存在本机，不联网上传',
+                    style: TextStyle(
+                        fontSize: 11.5, letterSpacing: 0.3, color: Xm.ink3)),
               ],
             ),
           ),
-          const SizedBox(height: 18),
-          _section('数据'),
-          _tile(Icons.upload_file, '导入账单', _openImport),
-          _tile(Icons.pie_chart_outline, '预算', _openBudget),
-          _tile(Icons.event_repeat, '定期扣款', _openRecurring),
-          _tile(Icons.undo, '撤销上次导入', _undoImport),
-          _tile(Icons.category_outlined, '分类管理', _openCategories),
-          _tile(Icons.file_download_outlined, '导出流水 CSV', _exportCsv),
-          _tile(Icons.backup_outlined, '备份为 JSON', _exportJson),
-          _tile(Icons.settings_backup_restore, '从备份恢复', _restoreBackup),
-          _tile(Icons.cleaning_services_outlined, '存储占用', _showStorage),
-          const SizedBox(height: 12),
-          _section('关于'),
-          _tile(
-            Icons.system_update_alt,
-            _checking ? '正在检查…' : '检查更新',
-            _checking ? null : _checkUpdate,
+          const SizedBox(height: 96),
+        ],
+      ),
+    );
+  }
+
+  /// 头像卡（§4.4）：用名字首字，不用默认人头图标。
+  Widget _profileCard() {
+    return XmHeroCard(
+      variant: XmHeroVariant.profile,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 46,
+            height: 46,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.18), width: 1),
+            ),
+            child: const Text(
+              '满',
+              style: TextStyle(
+                  fontSize: 22, fontWeight: FontWeight.w500, color: Colors.white),
+            ),
           ),
-          _tile(
-            Icons.cloud_outlined,
-            '更新源',
-            _editUpdateUrl,
-            subtitle: (_updateUrl == null || _updateUrl!.isEmpty)
-                ? '默认（自动尝试多个地址）'
-                : _updateUrl!,
-          ),
-          _tile(Icons.article_outlined, '更新日志', _showChangelog),
-          _tile(Icons.info_outline, '开源地址', () => _openUrl(kRepoUrl)),
-          const SizedBox(height: 18),
-          const Center(
-            child: Text('数据只保存在本机，不联网上传',
-                style: TextStyle(fontSize: 11, color: Colors.black38)),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text(kAppName,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
+                    color: Colors.white,
+                  )),
+              const SizedBox(height: 5),
+              Text('版本 $kAppVersion ($kAppBuild)',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    letterSpacing: 0.3,
+                    color: Xm.onDarkLabel,
+                  )),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _section(String title) {
+  Widget _menuCard(List<Widget> rows) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8, left: 4),
-      child: Text(title,
-          style: const TextStyle(fontSize: 12, color: Colors.black45)),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: XmCard(child: Column(children: rows)),
     );
   }
 
   Widget _tile(IconData icon, String title, VoidCallback? onTap,
-      {String? subtitle}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 1),
-      color: Colors.white,
-      child: ListTile(
-        leading: Icon(icon, size: 20, color: const Color(0xFF3F7D58)),
-        title: Text(title, style: const TextStyle(fontSize: 15)),
-        subtitle: subtitle == null
-            ? null
-            : Text(subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11, color: Colors.black38)),
-        trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.black26),
+      {String? subtitle, bool first = false}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         onTap: onTap,
+        child: Column(
+          children: <Widget>[
+            if (!first) const XmDivider(indent: 52),
+            SizedBox(
+              height: subtitle == null ? 56 : 65,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: <Widget>[
+                    Icon(icon, size: 24, color: Xm.brand),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Xm.text(15, FontWeight.w500,
+                                  spacing: -0.1, color: Xm.ink)),
+                          if (subtitle != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 11.5, color: Xm.ink3),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded,
+                        size: 16, color: Color(0xFFC4CEC7)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
