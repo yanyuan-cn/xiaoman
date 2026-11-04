@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '1.2.0';
-const int kAppBuild = 15;
+const String kAppVersion = '1.3.0';
+const int kAppBuild = 16;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,14 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+1.3.0
+· 全新视觉：墨绿 + 米白 + 哑光金，整套皮肤按设计规范重做
+· 新图标「墨绿满未满」：开口朝上的环 + 液面线 + 一滴
+· 首页概览卡：支出 / 收入 / 结余三栏，预算进度条与分类余额
+· 底部导航换成滑动指示块，切页带 22% 位移过渡
+· 流水逐条入场，分类用首字方块，金额全部等宽数字
+· 资产页、我的页改为卡片分组，层次更清楚
+
 1.2.0
 · 新增：从备份恢复，换手机、误删、重装之后能把账找回来
 · 备份升级为全量：账户、分类、流水、预算、定期扣款、设置都在里面
