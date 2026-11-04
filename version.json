@@ -1,8 +1,8 @@
 {
-  "versionCode": 15,
-  "versionName": "1.2.0",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.2.0/app-release.apk",
-  "sha256": "7F2FF7559082AED33A079558014E835E2114A82762B4227EB8B368C4FB525E69",
+  "versionCode": 16,
+  "versionName": "1.3.0",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.3.0/app-release.apk",
+  "sha256": "C03BC720F5238F3F636B0BFAB647A8F4FD70BC5EA7C8BE555135A46AAF9B4CDC",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "新增：从备份恢复，换手机/误删/重装后能把账找回来。备份升级为全量导出（账户、分类、流水、预算、定期扣款、设置），恢复前会自动先备份当前数据。"
+  "notes": "按《小满设计规范》重做视觉层：墨绿/米白/哑光金配色、三栏概览卡与预算进度、逐条入场流水、滑动指示块的底部导航、卡片分组的资产与我的页，以及新图标「墨绿满未满」。功能与 1.2.0 相同。"
 }

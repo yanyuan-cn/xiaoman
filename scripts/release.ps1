@@ -217,13 +217,17 @@ $releaseId = $Matches[1]
 Write-Host "   release $releaseId created"
 
 Step 'Upload APK'
-$upload = (Invoke-Native -Exe 'curl.exe' -NativeArgs (
-    $ProxyArgs + @('-sS', '--max-time', '1800', '-X', 'POST',
-                   '-H', "Authorization: Bearer $token",
-                   '-H', 'Content-Type: application/vnd.android.package-archive',
-                   '--data-binary', "@$ApkPath",
-                   "https://uploads.github.com/repos/$RepoSlug/releases/$releaseId/assets?name=app-release.apk")
-)).Output
+$uploadArgs = @('-sS', '--http1.1', '--max-time', '900', '--retry', '2', '-X', 'POST',
+                '-H', "Authorization: Bearer $token",
+                '-H', 'Content-Type: application/vnd.android.package-archive',
+                '--data-binary', "@$ApkPath",
+                "https://uploads.github.com/repos/$RepoSlug/releases/$releaseId/assets?name=app-release.apk")
+# 直连优先：经代理传 57MB 实测会卡死，而 uploads.github.com 直连是通的。
+$upload = (Invoke-Native -Exe 'curl.exe' -AllowFail -NativeArgs $uploadArgs).Output
+if ($upload -notmatch '"state"\s*:\s*"uploaded"') {
+    Write-Host '   direct upload failed, retrying through the proxy...'
+    $upload = (Invoke-Native -Exe 'curl.exe' -AllowFail -NativeArgs ($ProxyArgs + $uploadArgs)).Output
+}
 if ($upload -notmatch '"state"\s*:\s*"uploaded"') { Fail "upload failed: $upload" }
 if ($upload -notmatch ('"size"\s*:\s*' + $size)) { Fail 'uploaded size does not match local file' }
 Write-Host "   uploaded $size bytes"
