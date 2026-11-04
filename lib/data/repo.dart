@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 
+import 'db.dart';
 import 'models.dart';
 
 /// 本地时间 -> UTC 毫秒（库里统一存 UTC）
@@ -822,4 +823,193 @@ class Repo {
       );
     }
   }
+
+  // ---------------------------------------------------------------
+  // 备份与恢复
+  // ---------------------------------------------------------------
+
+  /// 备份包含的表。顺序即恢复时的写入顺序，恢复时按倒序清空。
+  static const List<String> backupTables = <String>[
+    'accounts',
+    'categories',
+    'txns',
+    'budgets',
+    'recurring_rules',
+    'import_batches',
+    'import_rows',
+    'settings',
+  ];
+
+  /// 全量导出：直接取原始行，不裁剪任何字段，保证导出什么就能恢复什么。
+  Future<Map<String, Object?>> exportBackup() async {
+    final Map<String, Object?> data = <String, Object?>{'schema': kDbVersion};
+    for (final String t in backupTables) {
+      data[t] = await db.query(t);
+    }
+    return data;
+  }
+
+  /// 恢复备份。
+  ///
+  /// format 2（带 schema 字段）走全量恢复，保留原始 id，外键关系不变；
+  /// 更早的导出只含 accounts/categories/txns 的部分字段，只能尽力恢复。
+  Future<BackupSummary> importBackup(Map<String, Object?> data) async {
+    final int schema = (data['schema'] as num?)?.toInt() ?? 0;
+    final bool full = (data['format'] as num?)?.toInt() == 2 || schema > 0;
+    if (schema > kDbVersion) {
+      throw BackupException('备份来自更新的版本（数据库 v$schema），请先升级应用');
+    }
+
+    final Map<String, List<Map<String, Object?>>> tables =
+        <String, List<Map<String, Object?>>>{};
+    if (full) {
+      for (final String t in backupTables) {
+        final Object? raw = data[t];
+        if (raw is! List) continue;
+        tables[t] = <Map<String, Object?>>[
+          for (final Object? row in raw)
+            if (row is Map) Map<String, Object?>.from(row),
+        ];
+      }
+    } else {
+      tables.addAll(_legacyRows(data));
+    }
+
+    if ((tables['accounts'] ?? const <Map<String, Object?>>[]).isEmpty &&
+        (tables['txns'] ?? const <Map<String, Object?>>[]).isEmpty) {
+      throw BackupException('这个文件里没有可恢复的数据');
+    }
+
+    // 只写表里真实存在的列：高版本备份多出来的字段会被忽略，不会插入失败。
+    final Map<String, Set<String>> cols = <String, Set<String>>{};
+    for (final String t in backupTables) {
+      cols[t] = <String>{
+        for (final Map<String, Object?> r
+            in await db.rawQuery('PRAGMA table_info($t)'))
+          r['name']! as String,
+      };
+    }
+
+    final Map<String, int> counts = <String, int>{};
+    await db.transaction((Transaction txn) async {
+      for (final String t in backupTables.reversed) {
+        await txn.delete(t);
+      }
+      for (final String t in backupTables) {
+        int n = 0;
+        for (final Map<String, Object?> row
+            in tables[t] ?? const <Map<String, Object?>>[]) {
+          final Map<String, Object?> clean = <String, Object?>{
+            for (final MapEntry<String, Object?> e in row.entries)
+              if (cols[t]!.contains(e.key)) e.key: e.value,
+          };
+          if (clean.isEmpty) continue;
+          await txn.insert(t, clean);
+          n++;
+        }
+        counts[t] = n;
+      }
+    });
+
+    return BackupSummary(counts: counts, full: full);
+  }
+
+  /// 旧版导出（camelCase、字段不全）转成表行。
+  Map<String, List<Map<String, Object?>>> _legacyRows(
+      Map<String, Object?> data) {
+    final int now = DateTime.now().millisecondsSinceEpoch;
+
+    List<Map<String, Object?>> list(String key) {
+      final Object? raw = data[key];
+      if (raw is! List) return <Map<String, Object?>>[];
+      return <Map<String, Object?>>[
+        for (final Object? e in raw)
+          if (e is Map) Map<String, Object?>.from(e),
+      ];
+    }
+
+    final List<Map<String, Object?>> accounts = <Map<String, Object?>>[];
+    int i = 0;
+    for (final Map<String, Object?> a in list('accounts')) {
+      accounts.add(<String, Object?>{
+        'id': a['id'],
+        'name': a['name'] ?? '',
+        'type': a['type'] ?? 'cash',
+        'initial_balance': (a['initialBalance'] as num?)?.toInt() ?? 0,
+        'is_liability': 0,
+        'include_in_total': 1,
+        'sort': i++,
+        'archived': 0,
+        'created_at': now,
+      });
+    }
+
+    final List<Map<String, Object?>> cats = <Map<String, Object?>>[];
+    i = 0;
+    for (final Map<String, Object?> c in list('categories')) {
+      cats.add(<String, Object?>{
+        'id': c['id'],
+        'name': c['name'] ?? '',
+        'kind': c['kind'] ?? 'expense',
+        'parent_id': c['parentId'],
+        'sort': i++,
+        'archived': 0,
+      });
+    }
+
+    final List<Map<String, Object?>> txns = <Map<String, Object?>>[];
+    for (final Map<String, Object?> t in list('txns')) {
+      final String? at = t['occurredAt'] as String?;
+      txns.add(<String, Object?>{
+        'kind': t['kind'] ?? 'expense',
+        'amount': (t['amount'] as num?)?.toInt() ?? 0,
+        'occurred_at': at == null
+            ? now
+            : DateTime.parse(at).toUtc().millisecondsSinceEpoch,
+        'account_id': (t['accountId'] as num?)?.toInt() ?? 0,
+        'to_account_id': null,
+        'category_id': (t['categoryId'] as num?)?.toInt(),
+        'note': t['note'],
+        'merchant': null,
+        'source': t['source'] ?? 'manual',
+        'external_id': null,
+        'dedup_hash': null,
+        'in_budget': 1,
+        'deleted_at': null,
+        'created_at': now,
+        'updated_at': now,
+      });
+    }
+
+    return <String, List<Map<String, Object?>>>{
+      'accounts': accounts,
+      'categories': cats,
+      'txns': txns,
+    };
+  }
+}
+
+/// 恢复结果：每张表实际写入的行数。
+class BackupSummary {
+  const BackupSummary({required this.counts, required this.full});
+
+  final Map<String, int> counts;
+
+  /// true = format 2 全量备份；false = 旧版部分备份
+  final bool full;
+
+  int count(String table) => counts[table] ?? 0;
+
+  int get accounts => count('accounts');
+  int get categories => count('categories');
+  int get txns => count('txns');
+}
+
+class BackupException implements Exception {
+  BackupException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }

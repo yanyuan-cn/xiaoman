@@ -271,49 +271,130 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _exportJson() async {
-    final List<Txn> txns = await widget.repo.allTxns();
-    final List<Account> accounts = await widget.repo.accounts();
-    final List<TxnCategory> cats = await widget.repo.categories();
-    final Map<String, Object?> data = <String, Object?>{
-      'app': kAppName,
-      'version': kAppVersion,
-      'exportedAt': DateTime.now().toIso8601String(),
-      'accounts': <Map<String, Object?>>[
-        for (final Account a in accounts)
-          <String, Object?>{
-            'id': a.id,
-            'name': a.name,
-            'type': a.type,
-            'initialBalance': a.initialBalance,
-          },
-      ],
-      'categories': <Map<String, Object?>>[
-        for (final TxnCategory c in cats)
-          <String, Object?>{
-            'id': c.id,
-            'name': c.name,
-            'kind': c.kind,
-            'parentId': c.parentId,
-          },
-      ],
-      'txns': <Map<String, Object?>>[
-        for (final Txn t in txns)
-          <String, Object?>{
-            'kind': t.kind,
-            'amount': t.amount,
-            'occurredAt': t.occurredAt.toIso8601String(),
-            'accountId': t.accountId,
-            'categoryId': t.categoryId,
-            'note': t.note,
-            'source': t.source,
-          },
-      ],
-    };
-    await _save(
-      '小满-备份-${_stamp()}.json',
-      JsonEncoder.withIndent('  ').convert(data),
-      'application/json',
-    );
+    try {
+      final Map<String, Object?> body = await widget.repo.exportBackup();
+      final String text = const JsonEncoder.withIndent('  ').convert(
+        <String, Object?>{
+          'app': kAppName,
+          'format': 2,
+          'version': kAppVersion,
+          'exportedAt': DateTime.now().toIso8601String(),
+          ...body,
+        },
+      );
+      final bool ok = await _saveBackup('小满-备份-${_stamp()}.json', text);
+      if (!mounted) return;
+      _toast(ok ? '已导出' : '已取消');
+    } catch (e) {
+      if (!mounted) return;
+      _toast('导出失败：$e');
+    }
+  }
+
+  /// 从 JSON 备份恢复：先确认，再自动导出当前数据，最后整库覆盖。
+  Future<void> _restoreBackup() async {
+    try {
+      final List<PlatformFile> picked = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: <String>['json'],
+      );
+      if (picked.isEmpty) return;
+
+      final Uint8List bytes = await picked.first.xFile.readAsBytes();
+      if (bytes.isEmpty) {
+        _toast('读不到文件内容');
+        return;
+      }
+
+      final String text =
+          utf8.decode(bytes, allowMalformed: true).replaceFirst('\uFEFF', '');
+      final Object? decoded = jsonDecode(text);
+      if (decoded is! Map) {
+        _toast('这不是有效的备份文件');
+        return;
+      }
+      final Map<String, Object?> data = Map<String, Object?>.from(decoded);
+      int n(String key) {
+        final Object? v = data[key];
+        return v is List ? v.length : 0;
+      }
+
+      if (n('accounts') == 0 && n('txns') == 0) {
+        _toast('这个文件里没有可恢复的数据');
+        return;
+      }
+
+      if (!mounted) return;
+      final bool? ok = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext ctx) => AlertDialog(
+          title: const Text('从备份恢复'),
+          content: Text(
+            '将恢复：账户 ${n('accounts')}、分类 ${n('categories')}、'
+            '流水 ${n('txns')}。\n\n'
+            '当前所有数据会被清空覆盖，无法撤销。\n'
+            '恢复前会先自动导出一份当前数据到你自己选的位置。\n\n'
+            '继续吗？',
+            style: const TextStyle(fontSize: 13, height: 1.6),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFB3261E)),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('覆盖并恢复'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+
+      // 恢复前先给当前数据留一份，防止选错文件后无处可退。
+      final Map<String, Object?> current = await widget.repo.exportBackup();
+      final bool saved = await _saveBackup(
+        '小满-恢复前-${_stamp()}.json',
+        const JsonEncoder.withIndent('  ').convert(<String, Object?>{
+          'app': kAppName,
+          'format': 2,
+          'version': kAppVersion,
+          'exportedAt': DateTime.now().toIso8601String(),
+          ...current,
+        }),
+      );
+      if (!saved) {
+        _toast('已取消：没能先备份当前数据');
+        return;
+      }
+
+      final BackupSummary r = await widget.repo.importBackup(data);
+      DataBus.instance.bump();
+      await _loadSettings();
+      await _loadStorage();
+      if (!mounted) return;
+      _toast('已恢复：账户 ${r.accounts}、分类 ${r.categories}、'
+          '流水 ${r.txns}${r.full ? '' : '（旧版备份，部分字段缺失）'}');
+    } catch (e) {
+      if (!mounted) return;
+      _toast('恢复失败：$e');
+    }
+  }
+
+  Future<bool> _saveBackup(String fileName, String content) async {
+    try {
+      final Uri? uri = await FilePicker.saveFile(
+        fileName: fileName,
+        bytes: Uint8List.fromList(utf8.encode(content)),
+        mimeType: 'application/json',
+      );
+      return uri != null;
+    } catch (e) {
+      _toast('导出失败：$e');
+      return false;
+    }
   }
 
   Future<void> _save(String fileName, String content, String mime) async {
@@ -532,6 +613,7 @@ class _ProfilePageState extends State<ProfilePage> {
           _tile(Icons.category_outlined, '分类管理', _openCategories),
           _tile(Icons.file_download_outlined, '导出流水 CSV', _exportCsv),
           _tile(Icons.backup_outlined, '备份为 JSON', _exportJson),
+          _tile(Icons.settings_backup_restore, '从备份恢复', _restoreBackup),
           _tile(Icons.cleaning_services_outlined, '存储占用', _showStorage),
           const SizedBox(height: 12),
           _section('关于'),
