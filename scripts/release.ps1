@@ -230,15 +230,20 @@ Write-Host "   uploaded $size bytes"
 
 # ---------- 7. version.json ----------
 Step 'Update version.json'
-$manifest = [ordered]@{
-    versionCode = $code
-    versionName = $ver
-    apkUrl      = "https://github.com/$RepoSlug/releases/download/$tag/app-release.apk"
-    sha256      = $sha
-    url         = "https://github.com/$RepoSlug/releases"
-    notes       = $Notes
+# Built by hand: ConvertTo-Json in PowerShell 5.1 indents with 4 spaces and puts two
+# spaces after the colon, which does not match the repo style and makes noisy diffs.
+$escapedNotes = $Notes -replace '\\', '\\' -replace '"', '\"' -replace "`r", '' -replace "`n", '\n'
+$manifestText = @"
+{
+  "versionCode": $code,
+  "versionName": "$ver",
+  "apkUrl": "https://github.com/$RepoSlug/releases/download/$tag/app-release.apk",
+  "sha256": "$sha",
+  "url": "https://github.com/$RepoSlug/releases",
+  "notes": "$escapedNotes"
 }
-[IO.File]::WriteAllText($VersionJson, (($manifest | ConvertTo-Json) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
+"@
+[IO.File]::WriteAllText($VersionJson, $manifestText, (New-Object System.Text.UTF8Encoding($false)))
 Write-Host '   version.json rewritten'
 
 Invoke-Git add version.json | Out-Null
