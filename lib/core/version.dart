@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '1.1.1';
-const int kAppBuild = 14;
+const String kAppVersion = '1.2.0';
+const int kAppBuild = 15;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,12 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+1.2.0
+· 新增：从备份恢复，换手机、误删、重装之后能把账找回来
+· 备份升级为全量：账户、分类、流水、预算、定期扣款、设置都在里面
+· 恢复时整库覆盖在一个事务里完成，中途出错不会写坏数据
+· 恢复前会自动先导出一份当前数据，选错文件也有退路
+
 1.1.1
 · 维护版本：功能与 1.1.0 相同，用于验证发版与应用内更新链路
 
