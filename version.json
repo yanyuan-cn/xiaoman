@@ -1,8 +1,8 @@
 {
-  "versionCode": 18,
-  "versionName": "1.5.0",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.5.0/app-release.apk",
-  "sha256": "036FEFFB5ABE2E20D2F1B8527742A907F0D864EB8A88D5EB481B9B05387613B5",
+  "versionCode": 19,
+  "versionName": "1.5.1",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.5.1/app-release.apk",
+  "sha256": "CD2E6D9C4DD2D525F6DDAEEB6D06B6DFD006E9F51D415DA50CA33138E6D6526E",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "新增搜索筛选（关键字/类型/分类/账户/时间/金额区间）；新增深色模式（跟随系统/浅色/深色）；导入支持 UTF-16 与 GBK 兜底；次级页面统一主题色。"
+  "notes": "修复检查更新：同时请求所有更新源并取版本号最高的；Pages 改用 GitHub Actions 发布，避免线上清单停在旧版本。"
 }
