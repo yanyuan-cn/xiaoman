@@ -66,11 +66,12 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
   String _two(int v) => v.toString().padLeft(2, '0');
 
   Future<void> _edit() async {
-    final bool? ok = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (BuildContext _) =>
-            RecordPage(repo: widget.repo, editing: _t),
-      ),
+    final bool? ok = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0x6B0A120E),
+      builder: (BuildContext _) => RecordPage(repo: widget.repo, editing: _t),
     );
     if (ok == true) {
       DataBus.instance.bump();

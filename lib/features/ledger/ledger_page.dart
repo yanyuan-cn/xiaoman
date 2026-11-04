@@ -64,12 +64,14 @@ class _LedgerPageState extends State<LedgerPage> {
   }
 
   Future<void> _openRecord() async {
-    await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (BuildContext _) => RecordPage(repo: widget.repo),
-      ),
+    final bool? saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0x6B0A120E),
+      builder: (BuildContext _) => RecordPage(repo: widget.repo),
     );
-    DataBus.instance.bump();
+    if (saved == true) DataBus.instance.bump();
   }
 
   Future<void> _openDetail(Txn t) async {
@@ -289,7 +291,10 @@ class _LedgerPageState extends State<LedgerPage> {
           step: 55,
           base: 80,
           offsetY: 10,
-          child: _row(t, acc, cat, first: rows.isEmpty),
+          child: XmSwipeDelete(
+            onDelete: () => _onDelete(t),
+            child: _row(t, acc, cat, first: rows.isEmpty),
+          ),
         ));
       }
       if (rows.isNotEmpty) children.add(_dayCard(rows));
@@ -539,7 +544,6 @@ class _LedgerPageState extends State<LedgerPage> {
       color: Colors.transparent,
       child: InkWell(
         onTap: () => _openDetail(t),
-        onLongPress: () => _onDelete(t),
         child: Column(
           children: <Widget>[
             if (!first) const XmDivider(),

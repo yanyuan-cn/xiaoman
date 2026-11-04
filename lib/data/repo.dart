@@ -825,6 +825,39 @@ class Repo {
   }
 
   // ---------------------------------------------------------------
+  // 账户归档（删除可撤销）
+  // ---------------------------------------------------------------
+
+  /// 归档账户：列表里不再显示，`restoreAccount` 可原样恢复。
+  Future<void> archiveAccount(int id) async {
+    await db.update(
+      'accounts',
+      <String, Object?>{'archived': 1},
+      where: 'id = ?',
+      whereArgs: <Object>[id],
+    );
+  }
+
+  Future<void> restoreAccount(int id) async {
+    await db.update(
+      'accounts',
+      <String, Object?>{'archived': 0},
+      where: 'id = ?',
+      whereArgs: <Object>[id],
+    );
+  }
+
+  /// 该账户下未删除的流水条数（删除前用来提示）。
+  Future<int> accountTxnCount(int id) async {
+    final List<Map<String, Object?>> rows = await db.rawQuery(
+      'SELECT COUNT(*) AS n FROM txns WHERE deleted_at IS NULL '
+      'AND (account_id = ? OR to_account_id = ?)',
+      <Object>[id, id],
+    );
+    return (rows.first['n'] as num?)?.toInt() ?? 0;
+  }
+
+  // ---------------------------------------------------------------
   // 备份与恢复
   // ---------------------------------------------------------------
 

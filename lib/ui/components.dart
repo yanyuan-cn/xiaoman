@@ -396,3 +396,120 @@ class XmTag extends StatelessWidget {
     );
   }
 }
+
+/// 左滑露出「删除」按钮（不是直接滑走，避免误删）。
+///
+/// 点删除后由调用方负责真正的删除与撤销提示；这里只负责收起。
+class XmSwipeDelete extends StatefulWidget {
+  const XmSwipeDelete({
+    super.key,
+    required this.child,
+    required this.onDelete,
+    this.actionWidth = 84,
+    this.label = '删除',
+  });
+
+  final Widget child;
+  final Future<void> Function() onDelete;
+  final double actionWidth;
+  final String label;
+
+  @override
+  State<XmSwipeDelete> createState() => _XmSwipeDeleteState();
+}
+
+class _XmSwipeDeleteState extends State<XmSwipeDelete>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 200),
+  )..addListener(() => setState(() => _offset = _anim.value));
+
+  late Animation<double> _anim = const AlwaysStoppedAnimation<double>(0);
+  double _offset = 0;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  void _snap(double to) {
+    _anim = Tween<double>(begin: _offset, end: to).animate(
+      CurvedAnimation(parent: _c, curve: Curves.easeOutCubic),
+    );
+    _c.forward(from: 0);
+  }
+
+  void _onDragUpdate(DragUpdateDetails d) {
+    if (_c.isAnimating) _c.stop();
+    setState(() {
+      _offset = (_offset + d.delta.dx).clamp(-widget.actionWidth, 0.0);
+    });
+  }
+
+  void _onDragEnd(DragEndDetails d) {
+    final bool open = _offset < -widget.actionWidth * 0.45;
+    _snap(open ? -widget.actionWidth : 0);
+  }
+
+  Future<void> _delete() async {
+    if (_busy) return;
+    _busy = true;
+    _snap(0);
+    await widget.onDelete();
+    _busy = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: SizedBox(
+                width: widget.actionWidth,
+                child: Material(
+                  color: const Color(0xFFF6E7E4),
+                  child: InkWell(
+                    onTap: _delete,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        const Icon(Icons.delete_outline_rounded,
+                            size: 20, color: Xm.expense),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.label,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Xm.expense,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          GestureDetector(
+            onHorizontalDragUpdate: _onDragUpdate,
+            onHorizontalDragEnd: _onDragEnd,
+            onTap: _offset == 0 ? null : () => _snap(0),
+            child: Transform.translate(
+              offset: Offset(_offset, 0),
+              // 滑开时用白色垫底，避免透出下面的删除按钮
+              child: ColoredBox(color: Xm.surface, child: widget.child),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

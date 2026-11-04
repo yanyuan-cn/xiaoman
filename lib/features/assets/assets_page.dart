@@ -208,11 +208,62 @@ class _AssetsPageState extends State<AssetsPage> {
   Widget _accountCard(List<Account> list) {
     final List<Widget> rows = <Widget>[];
     for (int i = 0; i < list.length; i++) {
-      rows.add(_row(list[i], first: i == 0));
+      rows.add(XmSwipeDelete(
+        onDelete: () => _deleteAccount(list[i]),
+        child: _row(list[i], first: i == 0),
+      ));
     }
     return XmCard(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(children: rows),
+    );
+  }
+
+  /// 删除账户（归档，可撤销）。有流水时先确认，避免一键把账户名变成「未知」。
+  Future<void> _deleteAccount(Account a) async {
+    final int count = await widget.repo.accountTxnCount(a.id);
+    if (count > 0) {
+      if (!mounted) return;
+      final bool? ok = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext ctx) => AlertDialog(
+          title: const Text('删除账户'),
+          content: Text(
+            '「${a.name}」下还有 $count 笔流水。删除后账户不再显示，'
+            '这些流水会保留但账户名显示为「未知」。\n\n要继续吗？',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('删除'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+
+    await widget.repo.archiveAccount(a.id);
+    await _load();
+    DataBus.instance.bump();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('已删除「${a.name}」'),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: '撤销',
+          onPressed: () async {
+            await widget.repo.restoreAccount(a.id);
+            await _load();
+            DataBus.instance.bump();
+          },
+        ),
+      ),
     );
   }
 

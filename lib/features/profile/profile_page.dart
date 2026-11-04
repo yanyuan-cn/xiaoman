@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/app_icon.dart';
 import '../../core/storage.dart';
 import '../../core/theme.dart';
 import '../../core/version.dart';
@@ -41,6 +42,125 @@ class _ProfilePageState extends State<ProfilePage> {
     super.initState();
     _loadStorage();
     _loadSettings();
+    _loadIcon();
+  }
+
+  String _iconId = AppIcon.d1;
+
+  Future<void> _loadIcon() async {
+    final String id = await AppIcon.current();
+    if (!mounted) return;
+    setState(() => _iconId = id);
+  }
+
+  /// 切换桌面图标：只换图标，不动数据。
+  Future<void> _pickIcon() async {
+    String selected = _iconId;
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => StatefulBuilder(
+        builder: (BuildContext ctx, StateSetter setInner) => AlertDialog(
+          title: const Text('应用图标'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              _iconOption(
+                ctx: ctx,
+                setInner: setInner,
+                id: AppIcon.d1,
+                selected: selected,
+                title: '墨绿满未满',
+                subtitle: '深色底、哑光金环，识别度更高（默认）',
+                onPick: () => selected = AppIcon.d1,
+              ),
+              const SizedBox(height: 6),
+              _iconOption(
+                ctx: ctx,
+                setInner: setInner,
+                id: AppIcon.d3,
+                selected: selected,
+                title: '米白方孔钱',
+                subtitle: '米白底、深墨棕外圆内方，更文雅',
+                onPick: () => selected = AppIcon.d3,
+              ),
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Text(
+                  '切换后桌面图标会重新加载，可能需要几秒；部分启动器要回到桌面才刷新。',
+                  style: TextStyle(fontSize: 11.5, height: 1.5, color: Xm.ink3),
+                ),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('应用'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+
+    final bool done = await AppIcon.apply(selected);
+    if (!mounted) return;
+    setState(() => _iconId = selected);
+    _toast(done ? '已切换图标，回桌面看一眼' : '切换失败，请重试');
+  }
+
+  Widget _iconOption({
+    required BuildContext ctx,
+    required StateSetter setInner,
+    required String id,
+    required String selected,
+    required String title,
+    required String subtitle,
+    required VoidCallback onPick,
+  }) {
+    final bool active = selected == id;
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => setInner(onPick),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: active ? Xm.brandLL : Xm.surface2,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: active ? Xm.brand.withValues(alpha: 0.4) : Xm.line,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: const TextStyle(fontSize: 11, color: Xm.ink3)),
+                ],
+              ),
+            ),
+            Icon(
+              active ? Icons.check_circle : Icons.circle_outlined,
+              size: 20,
+              color: active ? Xm.brand : Xm.ink3,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _loadSettings() async {
@@ -609,6 +729,17 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             _tile(Icons.article_outlined, '更新日志', _showChangelog),
             _tile(Icons.info_outline, '开源地址', () => _openUrl(kRepoUrl)),
+          ]),
+          const SizedBox(height: 14),
+          const XmSectionTitle('外观', group: true),
+          _menuCard(<Widget>[
+            _tile(
+              Icons.apps_rounded,
+              '应用图标',
+              _pickIcon,
+              first: true,
+              subtitle: _iconId == AppIcon.d3 ? '米白方孔钱（浅色）' : '墨绿满未满（深色）',
+            ),
           ]),
           const SizedBox(height: 20),
           const Center(

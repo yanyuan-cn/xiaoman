@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/dates.dart';
 import '../../core/money.dart';
+import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
 
@@ -39,6 +40,9 @@ class _RecordPageState extends State<RecordPage> {
 
   bool get _isEditing => widget.editing != null;
   bool get _isTransfer => _kind == 'transfer';
+
+  /// 金额 > 0 才允许提交（§4.5 交互规则）
+  bool get _canSave => (parseYuanToCents(_amount) ?? 0) > 0;
 
   @override
   void initState() {
@@ -224,13 +228,20 @@ class _RecordPageState extends State<RecordPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? '编辑账单' : '记一笔')),
-      body: SafeArea(
+    return SizedBox(
+      height: MediaQuery.sizeOf(context).height * 0.86,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFFBFCFA),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
         child: Column(
           children: <Widget>[
+            const SizedBox(height: 8),
+            _handle(),
+            _header(),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
               child: SegmentedButton<String>(
                 segments: const <ButtonSegment<String>>[
                   ButtonSegment<String>(value: 'expense', label: Text('支出')),
@@ -251,6 +262,42 @@ class _RecordPageState extends State<RecordPage> {
             _saveButton(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _handle() {
+    return Container(
+      width: 38,
+      height: 4.5,
+      margin: const EdgeInsets.only(bottom: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFD8E0DA),
+        borderRadius: BorderRadius.circular(3),
+      ),
+    );
+  }
+
+  Widget _header() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
+      child: Row(
+        children: <Widget>[
+          Text(
+            _isEditing ? '编辑账单' : '记一笔',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const Spacer(),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消',
+                style: TextStyle(fontSize: 14, color: Xm.ink3)),
+          ),
+        ],
       ),
     );
   }
@@ -452,7 +499,7 @@ class _RecordPageState extends State<RecordPage> {
       <String>['.', '0', '<'],
     ];
     return Container(
-      color: const Color(0xFFEDEFED),
+      color: const Color(0xFFF0F4F0),
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -470,27 +517,62 @@ class _RecordPageState extends State<RecordPage> {
 
   Widget _key(String k) {
     return SizedBox(
-      height: 52,
-      child: TextButton(
-        onPressed: () => _tapKey(k),
-        child: k == '<'
-            ? const Icon(Icons.backspace_outlined, size: 20)
-            : Text(k,
-                style:
-                    const TextStyle(fontSize: 22, fontWeight: FontWeight.w500)),
+      height: 50,
+      child: Padding(
+        padding: const EdgeInsets.all(2),
+        child: Material(
+          color: Xm.surface,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () => _tapKey(k),
+            child: Center(
+              child: k == '<'
+                  ? const Icon(Icons.backspace_outlined,
+                      size: 22, color: Xm.ink2)
+                  : Text(k,
+                      style: const TextStyle(
+                        fontSize: 23,
+                        fontWeight: FontWeight.w600,
+                        color: Xm.ink,
+                      )),
+            ),
+          ),
+        ),
       ),
     );
   }
 
   Widget _saveButton() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
       child: SizedBox(
         width: double.infinity,
-        height: 48,
-        child: FilledButton(
-          onPressed: _saving ? null : _save,
-          child: Text(_saving ? '保存中…' : (_isEditing ? '保存修改' : '保存')),
+        height: 50,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: _canSave ? Xm.buttonGradient : null,
+            color: _canSave ? null : Xm.ink3,
+            borderRadius: BorderRadius.circular(Xm.rButton),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(Xm.rButton),
+              onTap: _saving ? null : _save,
+              child: Center(
+                child: Text(
+                  _saving ? '保存中…' : (_isEditing ? '保存修改' : '完成'),
+                  style: const TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

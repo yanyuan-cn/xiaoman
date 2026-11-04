@@ -56,8 +56,61 @@ if ($text -notmatch '<queries>') {
     Write-Host 'Package queries added.' -ForegroundColor Green
 }
 
+# --- Launcher icon switch: two activity-alias entries (D1 dark / D3 light) ---
+# Keep this block ASCII only: PS 5.1 reads .ps1 as ANSI, so the Chinese label is
+# built from char codes instead of being written literally.
+if ($text -notmatch 'activity-alias') {
+    $text = [regex]::Replace(
+        $text,
+        '(?s)\s*<intent-filter>\s*<action android:name="android.intent.action.MAIN"\s*/>\s*<category android:name="android.intent.category.LAUNCHER"\s*/>\s*</intent-filter>',
+        '')
+
+    $aliasLabel = 'android:label="' + [char]0x5C0F + [char]0x6EE1 + '"'
+    $aliases = @"
+        <activity-alias
+            android:name=".LauncherD1"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            $aliasLabel
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".LauncherD3"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_d3"
+            android:roundIcon="@mipmap/ic_launcher_d3_round"
+            $aliasLabel
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+"@
+    $text = $text.Replace('</application>', $aliases + '    </application>')
+    Write-Host 'Launcher icon switch installed.' -ForegroundColor Green
+}
+
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($manifest, $text, $utf8NoBom)
+
+# Icon switch needs the custom MainActivity; android/ is generated, so keep the
+# source under scripts/ and copy it in every time.
+$kotlinSrc = Join-Path $root 'scripts\android\MainActivity.kt'
+$kotlinDst = Join-Path $root 'android\app\src\main\kotlin\com\xiaoman\xiaoman\MainActivity.kt'
+if (Test-Path $kotlinSrc) {
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $kotlinDst) | Out-Null
+    Copy-Item $kotlinSrc $kotlinDst -Force
+    Write-Host 'Icon switch activity installed.' -ForegroundColor Green
+}
 
 # Replace launcher icons (assets/icon/res -> android/app/src/main/res)
 $resSrc = Join-Path $root 'assets\icon\res'

@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
 import '../../state/data_bus.dart';
+import '../../ui/components.dart';
 
 /// 分类配色：从品牌绿出发，越往后越淡，最后用哑光金收尾（§2.1）。
 const List<Color> _kPalette = <Color>[
@@ -308,11 +309,19 @@ class _StatsPageState extends State<StatsPage> {
             child: Stack(
               alignment: Alignment.center,
               children: <Widget>[
-                CustomPaint(
-                  size: const Size(180, 180),
-                  painter: _DonutPainter(
-                    slices: <int>[for (final MapEntry<String, int> e in slices) e.value],
-                    colors: colors,
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0, end: 1),
+                  duration: const Duration(milliseconds: 1020),
+                  curve: XmEase.e1,
+                  builder: (BuildContext ctx, double t, Widget? _) => CustomPaint(
+                    size: const Size(180, 180),
+                    painter: _DonutPainter(
+                      slices: <int>[
+                        for (final MapEntry<String, int> e in slices) e.value
+                      ],
+                      colors: colors,
+                      progress: t,
+                    ),
                   ),
                 ),
                 Column(
@@ -639,38 +648,65 @@ class _StatsPageState extends State<StatsPage> {
         const SizedBox(height: 10),
         SizedBox(
           height: 120,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: <Widget>[
-              for (int i = 0; i < _months.length; i++)
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: <Widget>[
-                      Text(
-                        _trend[i] == 0 ? '' : _short(_trend[i]),
-                        style: const TextStyle(
-                            fontSize: 9, color: Colors.black38),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        height: max == 0 ? 2 : (70 * _trend[i] / max) + 2,
-                        margin: const EdgeInsets.symmetric(horizontal: 8),
-                        decoration: BoxDecoration(
-                          color: i == _months.length - 1
-                              ? _green
-                              : const Color(0xFFBFD5C7),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text('${_months[i].month}月',
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 720),
+            curve: XmEase.e1,
+            builder: (BuildContext ctx, double t, Widget? _) => Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                for (int i = 0; i < _months.length; i++)
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: <Widget>[
+                        Text(
+                          _trend[i] == 0 ? '' : _short(_trend[i]),
                           style: const TextStyle(
-                              fontSize: 10, color: Colors.black45)),
-                    ],
+                              fontSize: 9, color: Xm.ink3),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          height: max == 0
+                              ? 2
+                              : ((70 * _trend[i] / max) + 2) * t,
+                          margin: const EdgeInsets.symmetric(horizontal: 8),
+                          decoration: BoxDecoration(
+                            gradient: i == _months.length - 1
+                                ? const LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: <Color>[
+                                      Color(0xFF3E8163),
+                                      Color(0xFF2A6047)
+                                    ],
+                                  )
+                                : null,
+                            color: i == _months.length - 1
+                                ? null
+                                : const Color(0xFFBFD5C7),
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(6),
+                              bottom: Radius.circular(3),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text('${_months[i].month}月',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: i == _months.length - 1
+                                  ? Xm.brand
+                                  : Xm.ink3,
+                              fontWeight: i == _months.length - 1
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                            )),
+                      ],
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ],
@@ -695,10 +731,17 @@ class _StatsPageState extends State<StatsPage> {
 }
 
 class _DonutPainter extends CustomPainter {
-  _DonutPainter({required this.slices, required this.colors});
+  _DonutPainter({
+    required this.slices,
+    required this.colors,
+    this.progress = 1,
+  });
 
   final List<int> slices;
   final List<Color> colors;
+
+  /// 0 → 1 的扫入进度（§5 环形图扫入）
+  final double progress;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -709,21 +752,28 @@ class _DonutPainter extends CustomPainter {
     final double radius = math.min(size.width, size.height) / 2 - 2;
     const double stroke = 26;
     final Rect rect = Rect.fromCircle(center: center, radius: radius - stroke / 2);
+    // 段间留 2.2° 缝隙，缝隙是「分段」的视觉线索，不随段数变化（§6.2 C14）
+    final double gap = slices.length > 1 ? 2.2 * math.pi / 180 : 0;
 
     double start = -math.pi / 2;
     for (int i = 0; i < slices.length; i++) {
-      final double sweep = 2 * math.pi * slices[i] / total;
-      final Paint paint = Paint()
-        ..color = colors[i]
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = stroke
-        ..strokeCap = StrokeCap.butt;
-      canvas.drawArc(rect, start, sweep, false, paint);
-      start += sweep;
+      final double full = 2 * math.pi * slices[i] / total;
+      final double sweep = full * progress - gap;
+      if (sweep > 0) {
+        final Paint paint = Paint()
+          ..color = colors[i]
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = stroke
+          ..strokeCap = StrokeCap.butt;
+        canvas.drawArc(rect, start, sweep, false, paint);
+      }
+      start += full;
     }
   }
 
   @override
   bool shouldRepaint(_DonutPainter old) =>
-      old.slices != slices || old.colors != colors;
+      old.slices != slices ||
+      old.colors != colors ||
+      old.progress != progress;
 }

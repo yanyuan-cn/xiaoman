@@ -106,6 +106,14 @@ class _TabBar extends StatelessWidget {
   final List<_TabSpec> tabs;
   final ValueChanged<int> onTap;
 
+  /// 图标盒子、间隙、文字行高的固定值：滑块和图标共用同一套垂直基准，
+  /// 否则滑块会像早先那样偏上（图标中心 ≠ 滑块中心）。
+  static const double iconBox = 30;
+  static const double gap = 4;
+  static const double labelH = 14;
+  static const double barH = 80;
+  static const double topPad = (barH - (iconBox + gap + labelH)) / 2;
+
   @override
   Widget build(BuildContext context) {
     final double bottomInset = MediaQuery.paddingOf(context).bottom;
@@ -119,12 +127,11 @@ class _TabBar extends StatelessWidget {
             border: Border(top: BorderSide(color: Color(0x0F12211A), width: 1)),
           ),
           child: SizedBox(
-            height: 80,
+            height: barH,
             child: LayoutBuilder(
               builder: (BuildContext context, BoxConstraints c) {
                 final double slot = c.maxWidth / tabs.length;
                 const double pillW = 52;
-                const double pillH = 30;
                 return Stack(
                   children: <Widget>[
                     // 滑块是**一个**元素在四个位置间移动（§6.2 C10）
@@ -132,9 +139,9 @@ class _TabBar extends StatelessWidget {
                       duration: const Duration(milliseconds: 400),
                       curve: XmEase.e3,
                       left: slot * index + (slot - pillW) / 2,
-                      top: 10,
+                      top: topPad,
                       width: pillW,
-                      height: pillH,
+                      height: iconBox,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           color: Xm.brandL,
@@ -186,31 +193,39 @@ class _TabItem extends StatelessWidget {
       child: InkResponse(
         onTap: onTap,
         radius: 44,
+        containedInkWell: false,
         child: Padding(
-          padding: const EdgeInsets.only(top: 4),
+          padding: const EdgeInsets.only(top: _TabBar.topPad),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.start,
             children: <Widget>[
-              AnimatedSlide(
-                duration: const Duration(milliseconds: 340),
-                curve: XmEase.e4,
-                offset: selected ? const Offset(0, -0.06) : Offset.zero,
-                child: AnimatedScale(
-                  duration: const Duration(milliseconds: 340),
-                  curve: XmEase.e4,
-                  scale: selected ? 1.06 : 1,
-                  child: Icon(
-                    selected ? spec.activeIcon : spec.icon,
-                    size: 22,
-                    color: color,
+              // 图标在 30dp 的盒子里居中 —— 滑块也是 30dp、同一 top，天然对齐
+              SizedBox(
+                height: _TabBar.iconBox,
+                child: Center(
+                  child: AnimatedSlide(
+                    duration: const Duration(milliseconds: 340),
+                    curve: XmEase.e4,
+                    offset: selected ? const Offset(0, -0.06) : Offset.zero,
+                    child: AnimatedScale(
+                      duration: const Duration(milliseconds: 340),
+                      curve: XmEase.e4,
+                      scale: selected ? 1.06 : 1,
+                      child: Icon(
+                        selected ? spec.activeIcon : spec.icon,
+                        size: 22,
+                        color: color,
+                      ),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: _TabBar.gap),
               Text(
                 spec.label,
                 style: TextStyle(
                   fontSize: 10.5,
+                  height: 1.2,
                   letterSpacing: 0.3,
                   fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                   color: color,
