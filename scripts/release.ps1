@@ -65,6 +65,18 @@ $ProxyArgs = @()
 $proxyCfg = (& git config --get http.proxy 2>$null)
 if ($proxyCfg) { $ProxyArgs = @('-x', $proxyCfg.Trim()) }
 
+function Get-GitHubToken {
+    $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try {
+        $cred = ("protocol=https`nhost=github.com`n`n" | & git -c credential.helper=wincred credential fill 2>$null)
+    } finally {
+        $ErrorActionPreference = $old
+    }
+    $t = ($cred | Where-Object { $_ -like 'password=*' }) -replace '^password=', ''
+    if (-not $t) { Fail 'no GitHub credential in the Windows credential store' }
+    return $t
+}
+
 # ---------- 1. version ----------
 Step 'Version'
 
@@ -128,11 +140,20 @@ Write-Host "   sha256 $sha"
 
 # ---------- 4. preconditions ----------
 Step 'Remote precondition'
-$existing = (Invoke-Native -Exe 'curl.exe' -AllowFail -NativeArgs (
-    $ProxyArgs + @('-sS', '--max-time', '40', '-A', 'xiaoman-release',
+$token = Get-GitHubToken
+$probe = (Invoke-Native -Exe 'curl.exe' -AllowFail -NativeArgs (
+    $ProxyArgs + @('-sS', '--max-time', '40',
+                   '-H', "Authorization: Bearer $token",
+                   '-H', 'Accept: application/vnd.github+json',
+                   '-w', "`n%{http_code}",
                    "https://api.github.com/repos/$RepoSlug/releases/tags/$tag")
 )).Output
-if ($existing -match '"id"\s*:') { Fail "release $tag already exists on GitHub" }
+$probeText = $probe.TrimEnd()
+$probeLines = $probeText -split "`n"
+$httpCode = $probeLines[-1].Trim()
+$probeBody = ($probeLines[0..($probeLines.Count - 2)]) -join "`n"
+if ($httpCode -eq '200') { Fail "release $tag already exists on GitHub" }
+if ($httpCode -ne '404') { Fail "cannot check remote tag (HTTP $httpCode): $probeBody" }
 Write-Host "   $tag is free"
 
 $dirty = (Invoke-Git status --porcelain) -split "`n" | Where-Object { $_ }
@@ -169,12 +190,6 @@ Write-Host '   pushed'
 
 # ---------- 6. create release + upload ----------
 Step 'Create release'
-$old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-$cred = ("protocol=https`nhost=github.com`n`n" | & git -c credential.helper=wincred credential fill 2>$null)
-$ErrorActionPreference = $old
-$token = ($cred | Where-Object { $_ -like 'password=*' }) -replace '^password=', ''
-if (-not $token) { Fail 'no GitHub credential in the Windows credential store' }
-
 if (-not $Notes) { $Notes = "See the changelog in the app (v$ver)." }
 $releaseBody = "$Notes`n`nAPK SHA-256:`n$sha"
 
