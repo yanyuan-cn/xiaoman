@@ -29,7 +29,7 @@ class StatsPage extends StatefulWidget {
 }
 
 class _StatsPageState extends State<StatsPage> {
-  static const Color _green = Xm.brand;
+  static Color get _green => Xm.brand;
 
   String _mode = 'month';
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
@@ -299,7 +299,7 @@ class _StatsPageState extends State<StatsPage> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Xm.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -328,8 +328,8 @@ class _StatsPageState extends State<StatsPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     Text(_kind == 'expense' ? '支出' : '收入',
-                        style: const TextStyle(
-                            fontSize: 11, color: Colors.black45)),
+                        style: TextStyle(
+                            fontSize: 11, color: Xm.ink3)),
                     const SizedBox(height: 2),
                     Text('¥${formatCents(sum)}',
                         style: const TextStyle(
@@ -359,8 +359,8 @@ class _StatsPageState extends State<StatsPage> {
                         style: const TextStyle(fontSize: 13)),
                   ),
                   Text('¥${formatCents(slices[i].value)}',
-                      style: const TextStyle(
-                          fontSize: 12, color: Colors.black54)),
+                      style: TextStyle(
+                          fontSize: 12, color: Xm.ink3)),
                   const SizedBox(width: 10),
                   SizedBox(
                     width: 48,
@@ -432,16 +432,16 @@ class _StatsPageState extends State<StatsPage> {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Xm.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Padding(
+          Padding(
             padding: EdgeInsets.only(left: 4, bottom: 12),
             child: Text('每月支出 / 收入',
-                style: TextStyle(fontSize: 12, color: Colors.black45)),
+                style: TextStyle(fontSize: 12, color: Xm.ink3)),
           ),
           SizedBox(
             height: 140,
@@ -465,8 +465,8 @@ class _StatsPageState extends State<StatsPage> {
                         ),
                         const SizedBox(height: 6),
                         Text('${i + 1}',
-                            style: const TextStyle(
-                                fontSize: 9, color: Colors.black45)),
+                            style: TextStyle(
+                                fontSize: 9, color: Xm.ink3)),
                       ],
                     ),
                   ),
@@ -509,7 +509,7 @@ class _StatsPageState extends State<StatsPage> {
         ),
         const SizedBox(width: 5),
         Text(label,
-            style: const TextStyle(fontSize: 11, color: Colors.black45)),
+            style: TextStyle(fontSize: 11, color: Xm.ink3)),
       ],
     );
   }
@@ -526,14 +526,14 @@ class _StatsPageState extends State<StatsPage> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Xm.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(title,
-              style: const TextStyle(fontSize: 12, color: Colors.black45)),
+              style: TextStyle(fontSize: 12, color: Xm.ink3)),
           const SizedBox(height: 12),
           for (final MapEntry<int, int> e in entries.take(10))
             Padding(
@@ -556,8 +556,8 @@ class _StatsPageState extends State<StatsPage> {
                         child: Text(
                           '${(e.value * 100 / sum).toStringAsFixed(1)}%',
                           textAlign: TextAlign.right,
-                          style: const TextStyle(
-                              fontSize: 11, color: Colors.black38),
+                          style: TextStyle(
+                              fontSize: 11, color: Xm.ink3),
                         ),
                       ),
                     ],
@@ -615,8 +615,8 @@ class _StatsPageState extends State<StatsPage> {
                       child: Text(
                         '${(e.value * 100 / sum).toStringAsFixed(1)}%',
                         textAlign: TextAlign.right,
-                        style: const TextStyle(
-                            fontSize: 11, color: Colors.black38),
+                        style: TextStyle(
+                            fontSize: 11, color: Xm.ink3),
                       ),
                     ),
                   ],
@@ -627,8 +627,8 @@ class _StatsPageState extends State<StatsPage> {
                   child: LinearProgressIndicator(
                     value: max == 0 ? 0 : e.value / max,
                     minHeight: 5,
-                    backgroundColor: const Color(0xFFEDEFED),
-                    valueColor: const AlwaysStoppedAnimation<Color>(_green),
+                    backgroundColor: Xm.surface2,
+                    valueColor: AlwaysStoppedAnimation<Color>(_green),
                   ),
                 ),
               ],
@@ -643,8 +643,8 @@ class _StatsPageState extends State<StatsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        const Text('近 6 个月',
-            style: TextStyle(fontSize: 12, color: Colors.black45)),
+        Text('近 6 个月',
+            style: TextStyle(fontSize: 12, color: Xm.ink3)),
         const SizedBox(height: 10),
         SizedBox(
           height: 120,
@@ -662,7 +662,7 @@ class _StatsPageState extends State<StatsPage> {
                       children: <Widget>[
                         Text(
                           _trend[i] == 0 ? '' : _short(_trend[i]),
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 9, color: Xm.ink3),
                         ),
                         const SizedBox(height: 4),
@@ -718,7 +718,7 @@ class _StatsPageState extends State<StatsPage> {
       padding: const EdgeInsets.symmetric(vertical: 24),
       child: Center(
         child: Text(text,
-            style: const TextStyle(color: Colors.black38, fontSize: 13)),
+            style: TextStyle(color: Xm.ink3, fontSize: 13)),
       ),
     );
   }

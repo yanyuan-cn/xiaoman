@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme.dart';
+
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
@@ -141,26 +143,26 @@ class _RecurringPageState extends State<RecurringPage> {
                 ),
                 const SizedBox(height: 16),
                 if (_rules.isEmpty)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(vertical: 24),
                     child: Center(
                       child: Text('还没有定期扣款',
-                          style: TextStyle(fontSize: 13, color: Colors.black38)),
+                          style: TextStyle(fontSize: 13, color: Xm.ink3)),
                     ),
                   )
                 else
                   for (final RecurringRule r in _rules) _ruleTile(r),
                 const SizedBox(height: 20),
                 if (_liabilities.isNotEmpty) ...<Widget>[
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(left: 4, bottom: 8),
                     child: Text('贷款 / 负债账户',
                         style:
-                            TextStyle(fontSize: 12, color: Colors.black45)),
+                            TextStyle(fontSize: 12, color: Xm.ink3)),
                   ),
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: Xm.surface,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Column(
@@ -171,8 +173,8 @@ class _RecurringPageState extends State<RecurringPage> {
                             title: Text(a.name,
                                 style: const TextStyle(fontSize: 14)),
                             subtitle: Text('待还 ${formatCents(_balance(a).abs())}',
-                                style: const TextStyle(
-                                    fontSize: 11, color: Colors.black45)),
+                                style: TextStyle(
+                                    fontSize: 11, color: Xm.ink3)),
                             trailing: TextButton(
                               onPressed: () => _editNewFor(a),
                               child: const Text('加还款计划'),
@@ -225,7 +227,7 @@ class _RecurringPageState extends State<RecurringPage> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Xm.surface,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -241,8 +243,8 @@ class _RecurringPageState extends State<RecurringPage> {
                           fontSize: 15, fontWeight: FontWeight.w500)),
                   const SizedBox(height: 3),
                   Text(detail,
-                      style: const TextStyle(
-                          fontSize: 11, color: Colors.black45)),
+                      style: TextStyle(
+                          fontSize: 11, color: Xm.ink3)),
                   const SizedBox(height: 3),
                   Text('¥${formatCents(r.amount)}',
                       style: const TextStyle(
@@ -258,8 +260,8 @@ class _RecurringPageState extends State<RecurringPage> {
           IconButton(
             tooltip: '删除',
             onPressed: () => _delete(r),
-            icon: const Icon(Icons.delete_outline,
-                size: 20, color: Colors.black38),
+            icon: Icon(Icons.delete_outline,
+                size: 20, color: Xm.ink3),
           ),
         ],
       ),
@@ -497,7 +499,7 @@ class _RuleEditorPageState extends State<_RuleEditorPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.black26),
+        border: Border.all(color: Xm.ink3),
         borderRadius: BorderRadius.circular(4),
       ),
       child: DropdownButton<T>(
@@ -515,7 +517,7 @@ class _RuleEditorPageState extends State<_RuleEditorPage> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(text,
-          style: const TextStyle(fontSize: 12, color: Colors.black45)),
+          style: TextStyle(fontSize: 12, color: Xm.ink3)),
     );
   }
 }

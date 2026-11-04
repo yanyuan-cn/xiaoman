@@ -91,6 +91,70 @@ class Repo {
     return rows.map(TxnCategory.fromMap).toList(growable: false);
   }
 
+  /// 搜索 / 筛选流水。
+  ///
+  /// [keyword] 同时匹配备注和商户；[categoryId] 会连带匹配它的子分类；
+  /// [accountId] 同时匹配转出与转入账户。
+  Future<List<Txn>> searchTxns({
+    String? keyword,
+    String? kind,
+    int? categoryId,
+    int? accountId,
+    DateTime? from,
+    DateTime? to,
+    int? minCents,
+    int? maxCents,
+    int limit = 500,
+  }) async {
+    final List<String> where = <String>['deleted_at IS NULL'];
+    final List<Object?> args = <Object?>[];
+
+    final String kw = (keyword ?? '').trim();
+    if (kw.isNotEmpty) {
+      where.add('(note LIKE ? OR merchant LIKE ?)');
+      final String like = '%${kw.replaceAll('%', '\\%').replaceAll('_', '\\_')}%';
+      args..add(like)..add(like);
+    }
+    if (kind != null && kind.isNotEmpty && kind != 'all') {
+      where.add('kind = ?');
+      args.add(kind);
+    }
+    if (categoryId != null) {
+      where.add('(category_id = ? OR category_id IN '
+          '(SELECT id FROM categories WHERE parent_id = ?))');
+      args..add(categoryId)..add(categoryId);
+    }
+    if (accountId != null) {
+      where.add('(account_id = ? OR to_account_id = ?)');
+      args..add(accountId)..add(accountId);
+    }
+    if (from != null) {
+      where.add('occurred_at >= ?');
+      args.add(toUtcMs(from));
+    }
+    if (to != null) {
+      where.add('occurred_at < ?');
+      args.add(toUtcMs(to));
+    }
+    if (minCents != null) {
+      where.add('amount >= ?');
+      args.add(minCents);
+    }
+    if (maxCents != null) {
+      where.add('amount <= ?');
+      args.add(maxCents);
+    }
+
+    final List<Map<String, Object?>> rows = await db.query(
+      'txns',
+      where: where.join(' AND '),
+      whereArgs: args,
+      orderBy: 'occurred_at DESC, id DESC',
+      limit: limit,
+    );
+    return rows.map(Txn.fromMap).toList(growable: false);
+  }
+
   Future<List<Txn>> txnsBetween(DateTime from, DateTime to) async {
     final List<Map<String, Object?>> rows = await db.query(
       'txns',

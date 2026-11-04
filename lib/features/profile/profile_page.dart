@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_icon.dart';
 import '../../core/storage.dart';
 import '../../core/theme.dart';
+import '../../core/theme_mode.dart';
 import '../../core/version.dart';
 import '../../data/models.dart';
 import '../../data/apk_updater.dart';
@@ -47,6 +48,56 @@ class _ProfilePageState extends State<ProfilePage> {
 
   String _iconId = AppIcon.d1;
 
+  /// 外观模式：跟随系统 / 浅色 / 深色
+  Future<void> _pickThemeMode() async {
+    XmThemeMode selected = ThemeController.instance.mode;
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => StatefulBuilder(
+        builder: (BuildContext ctx, StateSetter setInner) => AlertDialog(
+          title: const Text('外观模式'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              for (final XmThemeMode m in XmThemeMode.values)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: _iconOption(
+                    ctx: ctx,
+                    setInner: setInner,
+                    id: m.storage,
+                    selected: selected.storage,
+                    title: m.label,
+                    subtitle: switch (m) {
+                      XmThemeMode.system => '跟着手机的深色模式走',
+                      XmThemeMode.light => '米白底，白天看清爽',
+                      XmThemeMode.dark => '深绿底，夜里不刺眼',
+                    },
+                    onPick: () => selected = m,
+                  ),
+                ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('应用'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+
+    ThemeController.instance.setMode(selected);
+    await widget.repo.setSetting('theme_mode', selected.storage);
+    if (mounted) setState(() {});
+  }
+
   Future<void> _loadIcon() async {
     final String id = await AppIcon.current();
     if (!mounted) return;
@@ -84,7 +135,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 subtitle: '米白底、深墨棕外圆内方，更文雅',
                 onPick: () => selected = AppIcon.d3,
               ),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 12),
                 child: Text(
                   '切换后桌面图标会重新加载，可能需要几秒；部分启动器要回到桌面才刷新。',
@@ -148,7 +199,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           fontSize: 14, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 2),
                   Text(subtitle,
-                      style: const TextStyle(fontSize: 11, color: Xm.ink3)),
+                      style: TextStyle(fontSize: 11, color: Xm.ink3)),
                 ],
               ),
             ),
@@ -180,9 +231,9 @@ class _ProfilePageState extends State<ProfilePage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const Text(
+            Text(
               '填 version.json 的地址。留空则使用内置的多个地址自动尝试。',
-              style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.5),
+              style: TextStyle(fontSize: 12, color: Xm.ink3, height: 1.5),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -245,12 +296,12 @@ class _ProfilePageState extends State<ProfilePage> {
             const SizedBox(height: 10),
             Text(
               '${_stats['txns'] ?? 0} 条流水 · ${_stats['categories'] ?? 0} 个分类 · ${_stats['accounts'] ?? 0} 个账户',
-              style: const TextStyle(fontSize: 12, color: Colors.black45),
+              style: TextStyle(fontSize: 12, color: Xm.ink3),
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               '缓存里主要是更新时下载的安装包，清理不会影响账目。',
-              style: TextStyle(fontSize: 11, color: Colors.black38),
+              style: TextStyle(fontSize: 11, color: Xm.ink3),
             ),
           ],
         ),
@@ -279,7 +330,7 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Row(
         children: <Widget>[
           SizedBox(width: 64, child: Text(label, style: const TextStyle(fontSize: 13))),
-          Text(value, style: const TextStyle(fontSize: 13, color: Colors.black54)),
+          Text(value, style: TextStyle(fontSize: 13, color: Xm.ink3)),
         ],
       ),
     );
@@ -619,7 +670,7 @@ class _ProfilePageState extends State<ProfilePage> {
               valueListenable: status,
               builder: (BuildContext _, String s, Widget? __) => Text(
                 s,
-                style: const TextStyle(fontSize: 12, color: Colors.black54),
+                style: TextStyle(fontSize: 12, color: Xm.ink3),
               ),
             ),
           ],
@@ -734,15 +785,21 @@ class _ProfilePageState extends State<ProfilePage> {
           const XmSectionTitle('外观', group: true),
           _menuCard(<Widget>[
             _tile(
+              Icons.brightness_6_outlined,
+              '外观模式',
+              _pickThemeMode,
+              first: true,
+              subtitle: ThemeController.instance.mode.label,
+            ),
+            _tile(
               Icons.apps_rounded,
               '应用图标',
               _pickIcon,
-              first: true,
               subtitle: _iconId == AppIcon.d3 ? '米白方孔钱（浅色）' : '墨绿满未满（深色）',
             ),
           ]),
           const SizedBox(height: 20),
-          const Center(
+          Center(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
@@ -849,7 +906,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 subtitle,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 11.5, color: Xm.ink3),
                               ),
                             ),

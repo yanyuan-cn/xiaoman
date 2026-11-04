@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/theme.dart';
+
 import '../../data/import/decode.dart';
 import '../../data/import/draft.dart';
 import '../../data/models.dart';
@@ -217,19 +219,19 @@ class _ImportPageState extends State<ImportPage> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: <Widget>[
-        const Icon(Icons.upload_file, size: 64, color: Colors.black26),
+        Icon(Icons.upload_file, size: 64, color: Xm.ink3),
         const SizedBox(height: 16),
         const Text(
           '导入账单',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           '支持三种来源，选文件后自动识别：\n'
           '· 支付宝账单（CSV）\n'
           '· 微信账单（解压后的 CSV）\n'
           '· 其他记账 App 导出的 CSV',
-          style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.6),
+          style: TextStyle(fontSize: 13, color: Xm.ink3, height: 1.6),
         ),
         const SizedBox(height: 24),
         FilledButton.icon(
@@ -275,14 +277,14 @@ class _ImportPageState extends State<ImportPage> {
                     Text(
                       '共 ${p.total} 行 · 可导入 ${p.rows.length} 行'
                       '${p.skipped > 0 ? ' · 跳过 ${p.skipped} 行（无法识别）' : ''}',
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      style: TextStyle(fontSize: 12, color: Xm.ink3),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 18),
-              const Text('账户对应',
-                  style: TextStyle(fontSize: 12, color: Colors.black45)),
+              Text('账户对应',
+                  style: TextStyle(fontSize: 12, color: Xm.ink3)),
               const SizedBox(height: 8),
               for (final String name in p.accountCounts.keys)
                 Padding(
@@ -296,8 +298,8 @@ class _ImportPageState extends State<ImportPage> {
                         ),
                       ),
                       Text('${p.accountCounts[name]} 笔',
-                          style: const TextStyle(
-                              fontSize: 12, color: Colors.black38)),
+                          style: TextStyle(
+                              fontSize: 12, color: Xm.ink3)),
                       const SizedBox(width: 10),
                       DropdownButton<int>(
                         value: _accountMap[name],
@@ -326,8 +328,8 @@ class _ImportPageState extends State<ImportPage> {
                 controlAffinity: ListTileControlAffinity.leading,
                 title: const Text('历史账单不计入预算',
                     style: TextStyle(fontSize: 14)),
-                subtitle: const Text('导入前的旧账不占本月预算额度',
-                    style: TextStyle(fontSize: 11, color: Colors.black38)),
+                subtitle: Text('导入前的旧账不占本月预算额度',
+                    style: TextStyle(fontSize: 11, color: Xm.ink3)),
               ),
               if (_error != null) ...<Widget>[
                 const SizedBox(height: 12),
@@ -366,12 +368,12 @@ class _ImportPageState extends State<ImportPage> {
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
         const SizedBox(height: 12),
         Text('新增 ${r.inserted} 笔',
-            style: const TextStyle(fontSize: 15, color: Colors.black87)),
+            style: TextStyle(fontSize: 15, color: Xm.ink)),
         if (r.skipped > 0)
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text('跳过 ${r.skipped} 笔（已存在）',
-                style: const TextStyle(fontSize: 13, color: Colors.black45)),
+                style: TextStyle(fontSize: 13, color: Xm.ink3)),
           ),
         const SizedBox(height: 24),
         OutlinedButton(
@@ -389,9 +391,9 @@ class _ImportPageState extends State<ImportPage> {
           child: const Text('完成'),
         ),
         const SizedBox(height: 18),
-        const Text(
+        Text(
           '导错了可以在首页右上角菜单里「撤销上次导入」。',
-          style: TextStyle(fontSize: 12, color: Colors.black38),
+          style: TextStyle(fontSize: 12, color: Xm.ink3),
         ),
       ],
     );

@@ -1,39 +1,119 @@
 import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+/// 一套调色板。浅色是设计规范原值，深色是同色相压暗后的对应值。
+class XmPalette {
+  const XmPalette({
+    required this.bg,
+    required this.surface,
+    required this.surface2,
+    required this.ink,
+    required this.ink2,
+    required this.ink3,
+    required this.line,
+    required this.brand,
+    required this.brandD,
+    required this.brandL,
+    required this.brandLL,
+    required this.gold,
+    required this.goldL,
+    required this.expense,
+    required this.income,
+  });
+
+  final Color bg;
+  final Color surface;
+  final Color surface2;
+  final Color ink;
+  final Color ink2;
+  final Color ink3;
+  final Color line;
+  final Color brand;
+  final Color brandD;
+  final Color brandL;
+  final Color brandLL;
+  final Color gold;
+  final Color goldL;
+  final Color expense;
+  final Color income;
+
+  static const XmPalette light = XmPalette(
+    bg: Color(0xFFF4F6F2),
+    surface: Color(0xFFFFFFFF),
+    surface2: Color(0xFFFAFBF8),
+    ink: Color(0xFF12211A),
+    ink2: Color(0xFF5B6B62),
+    ink3: Color(0xFF9AA8A0),
+    line: Color(0xFFE8EDE7),
+    brand: Color(0xFF2F6B4F),
+    brandD: Color(0xFF1F4C37),
+    brandL: Color(0xFFDCEBE1),
+    brandLL: Color(0xFFEFF6F1),
+    gold: Color(0xFFB08442),
+    goldL: Color(0xFFF3E9D8),
+    expense: Color(0xFFC0392B),
+    income: Color(0xFF2F6B4F),
+  );
+
+  static const XmPalette dark = XmPalette(
+    bg: Color(0xFF0E1613),
+    surface: Color(0xFF16211C),
+    surface2: Color(0xFF1B2721),
+    ink: Color(0xFFE9F0EA),
+    ink2: Color(0xFFA8B6AD),
+    ink3: Color(0xFF71827A),
+    line: Color(0xFF243029),
+    brand: Color(0xFF62B48C),
+    brandD: Color(0xFF2F6B4F),
+    brandL: Color(0xFF1E3A2C),
+    brandLL: Color(0xFF172A20),
+    gold: Color(0xFFC99C58),
+    goldL: Color(0xFF2A2318),
+    expense: Color(0xFFE4776A),
+    income: Color(0xFF6DBB91),
+  );
+}
 
 /// 设计 Token：小满「Quiet Ledger」。
 ///
-/// 全部数值来自《小满设计规范》§2，改这里就能全站生效。
+/// 颜色是 **getter**，读当前调色板（`Xm.setDark`）；圆角/字号/渐变是常量。
 /// 约定：绿色是品牌色，不是"成功"语义色；红色只给支出与负值。
 class Xm {
   Xm._();
 
-  // ---------------- 色彩（§2.1） ----------------
-  static const Color bg = Color(0xFFF4F6F2);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color surface2 = Color(0xFFFAFBF8);
-  static const Color ink = Color(0xFF12211A);
-  static const Color ink2 = Color(0xFF5B6B62);
-  static const Color ink3 = Color(0xFF9AA8A0);
-  static const Color line = Color(0xFFE8EDE7);
+  static XmPalette _p = XmPalette.light;
+  static bool _dark = false;
 
-  static const Color brand = Color(0xFF2F6B4F);
-  static const Color brandD = Color(0xFF1F4C37);
-  static const Color brandL = Color(0xFFDCEBE1);
-  static const Color brandLL = Color(0xFFEFF6F1);
+  static bool get isDark => _dark;
 
-  static const Color gold = Color(0xFFB08442);
-  static const Color goldL = Color(0xFFF3E9D8);
+  static void setDark(bool value) {
+    _dark = value;
+    _p = value ? XmPalette.dark : XmPalette.light;
+  }
 
-  /// 支出金额、负余额。**仅此用途**（§0.3）。
-  static const Color expense = Color(0xFFC0392B);
-  static const Color income = Color(0xFF2F6B4F);
+  // ---------------- 色彩（随主题切换） ----------------
+  static Color get bg => _p.bg;
+  static Color get surface => _p.surface;
+  static Color get surface2 => _p.surface2;
+  static Color get ink => _p.ink;
+  static Color get ink2 => _p.ink2;
+  static Color get ink3 => _p.ink3;
+  static Color get line => _p.line;
+  static Color get brand => _p.brand;
+  static Color get brandD => _p.brandD;
+  static Color get brandL => _p.brandL;
+  static Color get brandLL => _p.brandLL;
+  static Color get gold => _p.gold;
+  static Color get goldL => _p.goldL;
+  static Color get expense => _p.expense;
+  static Color get income => _p.income;
 
-  /// 深绿卡上的关键数字（预算剩余、结余）
+  /// 深绿卡上的关键数字（预算剩余、结余）—— 深浅色都用这个金色
   static const Color goldOnDark = Color(0xFFF0D7A6);
 
-  // 深色卡内的文字透明度阶梯（§2.1）
+  // 深色卡内的文字透明度阶梯（卡片本身在两种模式下都是墨绿）
   static const Color onDarkLabel = Color(0x9EFFFFFF); // .62
   static const Color onDarkNote = Color(0x8CFFFFFF); // .55
   static const Color onDarkStrong = Color(0xF0FFFFFF); // .94
@@ -53,11 +133,10 @@ class Xm {
 
   // ---------------- 间距（§2.3） ----------------
   static const double gutter = 16;
-  static const EdgeInsets pagePadding = EdgeInsets.fromLTRB(16, 8, 16, 96);
 
   // ---------------- 渐变（§2.1，三张主色卡参数不同，别混用） ----------------
 
-  /// A. 首页概览卡：右上高光 + 左下暗角 + 152° 三段渐变
+  /// A. 首页概览卡
   static const LinearGradient heroGradient = LinearGradient(
     begin: Alignment(-0.47, -0.88),
     end: Alignment(0.47, 0.88),
@@ -65,7 +144,7 @@ class Xm {
     stops: <double>[0, 0.52, 1],
   );
 
-  /// B. 资产净值卡：少一层暗角，155°
+  /// B. 资产净值卡
   static const LinearGradient assetGradient = LinearGradient(
     begin: Alignment(-0.42, -0.91),
     end: Alignment(0.42, 0.91),
@@ -93,9 +172,13 @@ class Xm {
   );
 
   // ---------------- 阴影（§2.5，只有三档） ----------------
-  static const List<BoxShadow> cardShadow = <BoxShadow>[
-    BoxShadow(color: Color(0x0A12211A), blurRadius: 2, offset: Offset(0, 1)),
-  ];
+  static List<BoxShadow> get cardShadow => <BoxShadow>[
+        BoxShadow(
+          color: _dark ? const Color(0x40000000) : const Color(0x0A12211A),
+          blurRadius: _dark ? 2 : 2,
+          offset: const Offset(0, 1),
+        ),
+      ];
 
   static const List<BoxShadow> heroShadow = <BoxShadow>[
     BoxShadow(
@@ -119,11 +202,11 @@ class Xm {
       ];
 
   /// 临时造一个文本样式（规范里没收录的字号/颜色组合用它）。
-  static TextStyle _s(
+  static TextStyle text(
     double size,
     FontWeight weight, {
     double spacing = 0,
-    Color color = ink,
+    Color? color,
     double height = 1.2,
     bool tabular = false,
   }) =>
@@ -131,60 +214,48 @@ class Xm {
         fontSize: size,
         fontWeight: weight,
         letterSpacing: spacing,
-        color: color,
+        color: color ?? ink,
         height: height,
         fontFeatures: tabular ? tnum : null,
       );
 
-  /// 公开版：页面里需要微调字号时用，避免各自写 TextStyle。
-  static TextStyle text(
-    double size,
-    FontWeight weight, {
-    double spacing = 0,
-    Color color = ink,
-    double height = 1.2,
-    bool tabular = false,
-  }) =>
-      _s(size, weight,
-          spacing: spacing,
-          color: color,
-          height: height,
-          tabular: tabular);
-
-  static final TextStyle display = _s(36, FontWeight.w700,
+  static TextStyle get display => text(36, FontWeight.w700,
       spacing: -1.6, color: Colors.white, height: 1, tabular: true);
-  static final TextStyle amountXL = _s(34, FontWeight.w700,
+  static TextStyle get amountXL => text(34, FontWeight.w700,
       spacing: -1.2, height: 1, tabular: true);
-  static final TextStyle amountL = _s(25, FontWeight.w700, spacing: -0.3);
-  static final TextStyle amountM = _s(24, FontWeight.w700,
+  static TextStyle get amountL =>
+      text(25, FontWeight.w700, spacing: -0.3);
+  static TextStyle get amountM => text(24, FontWeight.w700,
       spacing: -0.7, height: 1, tabular: true);
-  static final TextStyle amountS = _s(23, FontWeight.w600,
+  static TextStyle get amountS => text(23, FontWeight.w600,
       spacing: -0.7, color: Colors.white, height: 1, tabular: true);
-  static final TextStyle amountXS = _s(18, FontWeight.w700,
+  static TextStyle get amountXS => text(18, FontWeight.w700,
       spacing: -0.3, color: goldOnDark, height: 1, tabular: true);
 
-  static final TextStyle bodyL = _s(17, FontWeight.w600, spacing: 0.2);
-  static final TextStyle bodyM = _s(16, FontWeight.w600,
+  static TextStyle get bodyL => text(17, FontWeight.w600, spacing: 0.2);
+  static TextStyle get bodyM => text(16, FontWeight.w600,
       spacing: -0.4, height: 1.5, tabular: true);
-  static final TextStyle body = _s(15, FontWeight.w600, spacing: -0.1, height: 1.4);
-  static final TextStyle bodyS = _s(13.5, FontWeight.w600, spacing: 0.2);
-  static final TextStyle captionL = _s(13, FontWeight.w600, height: 1.4);
-  static final TextStyle caption = _s(12, FontWeight.w400,
-      spacing: 0.4, color: ink3, height: 1.4);
-  static final TextStyle captionS = _s(11.5, FontWeight.w400,
-      spacing: 0.3, color: ink3, height: 1.4);
-  static final TextStyle micro = _s(10.5, FontWeight.w600,
+  static TextStyle get body =>
+      text(15, FontWeight.w600, spacing: -0.1, height: 1.4);
+  static TextStyle get bodyS => text(13.5, FontWeight.w600, spacing: 0.2);
+  static TextStyle get captionL => text(13, FontWeight.w600, height: 1.4);
+  static TextStyle get caption =>
+      text(12, FontWeight.w400, spacing: 0.4, color: ink3, height: 1.4);
+  static TextStyle get captionS =>
+      text(11.5, FontWeight.w400, spacing: 0.3, color: ink3, height: 1.4);
+  static TextStyle get micro => text(10.5, FontWeight.w600,
       spacing: 0.3, color: ink3, height: 1.4);
 
   /// 深色卡片上的标签 / 说明
-  static final TextStyle onDarkLabelStyle =
-      _s(11.5, FontWeight.w400, spacing: 0.6, color: onDarkLabel);
+  static TextStyle get onDarkLabelStyle =>
+      text(11.5, FontWeight.w400, spacing: 0.6, color: onDarkLabel);
 
   // ---------------- ThemeData ----------------
   static ThemeData theme() {
+    final bool dark = _dark;
     final ColorScheme scheme = ColorScheme.fromSeed(
       seedColor: brand,
-      brightness: Brightness.light,
+      brightness: dark ? Brightness.dark : Brightness.light,
     ).copyWith(
       primary: brand,
       surface: surface,
@@ -194,6 +265,7 @@ class Xm {
 
     return ThemeData(
       useMaterial3: true,
+      brightness: dark ? Brightness.dark : Brightness.light,
       colorScheme: scheme,
       scaffoldBackgroundColor: bg,
       splashFactory: InkSparkle.splashFactory,
@@ -204,10 +276,13 @@ class Xm {
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: amountL,
-        iconTheme: const IconThemeData(color: ink2, size: 20),
-        actionsIconTheme: const IconThemeData(color: ink2, size: 20),
+        iconTheme: IconThemeData(color: ink2, size: 20),
+        actionsIconTheme: IconThemeData(color: ink2, size: 20),
+        systemOverlayStyle: dark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
       ),
-      dividerTheme: const DividerThemeData(color: line, thickness: 0.6, space: 1),
+      dividerTheme: DividerThemeData(color: line, thickness: 0.6, space: 1),
       cardTheme: CardThemeData(
         color: surface,
         elevation: 0,
@@ -217,8 +292,9 @@ class Xm {
         ),
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: ink,
-        contentTextStyle: _s(13.5, FontWeight.w500, color: Colors.white),
+        backgroundColor: dark ? surface2 : ink,
+        contentTextStyle: text(13.5, FontWeight.w500,
+            color: dark ? ink : Colors.white),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
@@ -226,22 +302,23 @@ class Xm {
         backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        titleTextStyle: _s(17, FontWeight.w700),
-        contentTextStyle: _s(13.5, FontWeight.w400, height: 1.6, color: ink2),
+        titleTextStyle: text(17, FontWeight.w700),
+        contentTextStyle: text(13.5, FontWeight.w400, height: 1.6, color: ink2),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: brand,
-          foregroundColor: Colors.white,
+          foregroundColor: dark ? const Color(0xFF08120D) : Colors.white,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(rButton)),
-          textStyle: _s(15, FontWeight.w600, spacing: 0.4),
+          textStyle: text(15, FontWeight.w600, spacing: 0.4,
+              color: dark ? const Color(0xFF08120D) : Colors.white),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: ink2,
-          textStyle: _s(14, FontWeight.w500),
+          textStyle: text(14, FontWeight.w500, color: ink2),
         ),
       ),
       listTileTheme: ListTileThemeData(
@@ -249,12 +326,12 @@ class Xm {
         subtitleTextStyle: captionS,
         iconColor: brand,
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
+      progressIndicatorTheme: ProgressIndicatorThemeData(
         color: brand,
-        linearTrackColor: Color(0xFFEFF3EE),
+        linearTrackColor: dark ? surface2 : const Color(0xFFEFF3EE),
       ),
-      splashColor: const Color(0x0F12211A),
-      highlightColor: const Color(0x0812211A),
+      splashColor: dark ? const Color(0x14FFFFFF) : const Color(0x0F12211A),
+      highlightColor: dark ? const Color(0x0AFFFFFF) : const Color(0x0812211A),
     );
   }
 }

@@ -219,7 +219,7 @@ class XmSectionTitle extends StatelessWidget {
           if (subtitle != null) ...<Widget>[
             const SizedBox(width: 6),
             Text('· $subtitle',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12, color: Xm.ink3, letterSpacing: 0.5)),
           ],
         ],
@@ -260,7 +260,7 @@ class XmProgressBar extends StatelessWidget {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: overdue
-                      ? const LinearGradient(
+                      ? LinearGradient(
                           colors: <Color>[Color(0xFFE07A6E), Xm.expense])
                       : (fill ?? Xm.barGold),
                 ),
@@ -366,7 +366,7 @@ class XmDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsetsDirectional.only(start: indent, end: endIndent),
-      child: const Divider(height: 0.6, thickness: 0.6, color: Xm.line),
+      child: Divider(height: 0.6, thickness: 0.6, color: Xm.line),
     );
   }
 }
@@ -387,7 +387,7 @@ class XmTag extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
           color: Xm.brand,
@@ -473,18 +473,20 @@ class _XmSwipeDeleteState extends State<XmSwipeDelete>
               child: SizedBox(
                 width: widget.actionWidth,
                 child: Material(
-                  color: const Color(0xFFF6E7E4),
+                  color: Xm.isDark
+                      ? const Color(0xFF3A221F)
+                      : const Color(0xFFF6E7E4),
                   child: InkWell(
                     onTap: _delete,
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: <Widget>[
-                        const Icon(Icons.delete_outline_rounded,
+                        Icon(Icons.delete_outline_rounded,
                             size: 20, color: Xm.expense),
                         const SizedBox(height: 2),
                         Text(
                           widget.label,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: Xm.expense,

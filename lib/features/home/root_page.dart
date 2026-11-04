@@ -122,9 +122,16 @@ class _TabBar extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
           padding: EdgeInsets.only(bottom: bottomInset),
-          decoration: const BoxDecoration(
-            color: Color(0xDBFAFBF9), // rgba(250,251,249,.86)
-            border: Border(top: BorderSide(color: Color(0x0F12211A), width: 1)),
+          decoration: BoxDecoration(
+            color: Xm.isDark
+                ? const Color(0xDB121A16)
+                : const Color(0xDBFAFBF9), // rgba(250,251,249,.86)
+            border: Border(
+              top: BorderSide(
+                color: Xm.isDark ? const Color(0x14FFFFFF) : const Color(0x0F12211A),
+                width: 1,
+              ),
+            ),
           ),
           child: SizedBox(
             height: barH,

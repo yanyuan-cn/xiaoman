@@ -12,6 +12,7 @@ import '../budget/budget_page.dart';
 import '../detail/txn_detail_page.dart';
 import '../import/import_page.dart';
 import '../record/record_page.dart';
+import '../search/search_page.dart';
 
 class LedgerPage extends StatefulWidget {
   const LedgerPage({super.key, required this.repo});
@@ -61,6 +62,15 @@ class _LedgerPageState extends State<LedgerPage> {
     DataBus.instance.removeListener(_onDataChanged);
     _state.dispose();
     super.dispose();
+  }
+
+  Future<void> _openSearch() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext _) => SearchPage(repo: widget.repo),
+      ),
+    );
+    if (mounted) await _state.load();
   }
 
   Future<void> _openRecord() async {
@@ -155,6 +165,8 @@ class _LedgerPageState extends State<LedgerPage> {
             // 首页标题是品牌名，不是"首页"（§4.1）
             title: const Text('小满'),
             actions: <Widget>[
+              _iconButton(Icons.search_rounded, '搜索', _openSearch),
+              const SizedBox(width: 2),
               _iconButton(Icons.refresh_rounded, '刷新',
                   _state.loading ? null : () => _state.load()),
               const SizedBox(width: 6),
@@ -214,7 +226,7 @@ class _LedgerPageState extends State<LedgerPage> {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
               fmtMonth(_state.month),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.1,
@@ -638,13 +650,13 @@ class _LedgerPageState extends State<LedgerPage> {
               color: Xm.brandLL,
               borderRadius: BorderRadius.circular(22),
             ),
-            child: const Icon(Icons.receipt_long_outlined,
+            child: Icon(Icons.receipt_long_outlined,
                 size: 28, color: Xm.brand),
           ),
           const SizedBox(height: 14),
-          const Text('这个月还没有记录', style: TextStyle(fontSize: 14, color: Xm.ink2)),
+          Text('这个月还没有记录', style: TextStyle(fontSize: 14, color: Xm.ink2)),
           const SizedBox(height: 4),
-          const Text('点右下角「记一笔」开始',
+          Text('点右下角「记一笔」开始',
               style: TextStyle(fontSize: 12, color: Xm.ink3)),
         ],
       ),

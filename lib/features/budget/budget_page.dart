@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme.dart';
+
 import '../../core/budget_period.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
@@ -162,9 +164,9 @@ class _BudgetPageState extends State<BudgetPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   '金额留空或填 0 表示不设这项预算。',
-                  style: TextStyle(fontSize: 12, color: Colors.black38),
+                  style: TextStyle(fontSize: 12, color: Xm.ink3),
                 ),
               ],
             ),
@@ -176,14 +178,14 @@ class _BudgetPageState extends State<BudgetPage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Xm.surface,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Text('重置周期',
-              style: TextStyle(fontSize: 12, color: Colors.black45)),
+          Text('重置周期',
+              style: TextStyle(fontSize: 12, color: Xm.ink3)),
           const SizedBox(height: 10),
           SegmentedButton<String>(
             segments: const <ButtonSegment<String>>[
@@ -217,14 +219,14 @@ class _BudgetPageState extends State<BudgetPage> {
             const SizedBox(height: 4),
             Text(
               '本期：${budgetPeriodLabel(p, _type)}',
-              style: const TextStyle(fontSize: 11, color: Colors.black38),
+              style: TextStyle(fontSize: 11, color: Xm.ink3),
             ),
           ] else
             Padding(
               padding: const EdgeInsets.only(top: 10),
               child: Text(
                 '每周一重置 · 本期：${budgetPeriodLabel(p, _type)}',
-                style: const TextStyle(fontSize: 11, color: Colors.black38),
+                style: TextStyle(fontSize: 11, color: Xm.ink3),
               ),
             ),
         ],
@@ -237,7 +239,7 @@ class _BudgetPageState extends State<BudgetPage> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Xm.surface,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -251,7 +253,7 @@ class _BudgetPageState extends State<BudgetPage> {
             padding: const EdgeInsets.only(top: 6, bottom: 8),
             child: Text(
               '本期已用：${budgetPeriodLabel(p, _type)}',
-              style: const TextStyle(fontSize: 11, color: Colors.black38),
+              style: TextStyle(fontSize: 11, color: Xm.ink3),
             ),
           ),
         ],
@@ -275,7 +277,7 @@ class _BudgetPageState extends State<BudgetPage> {
               label,
               style: TextStyle(
                 fontSize: 14,
-                color: enabled ? Colors.black87 : Colors.black26,
+                color: enabled ? Xm.ink : Xm.ink3,
               ),
             ),
           ),
@@ -297,7 +299,7 @@ class _BudgetPageState extends State<BudgetPage> {
           ),
           Text(
             '已用 ${formatCents(spent)}',
-            style: const TextStyle(fontSize: 11, color: Colors.black38),
+            style: TextStyle(fontSize: 11, color: Xm.ink3),
           ),
         ],
       ),

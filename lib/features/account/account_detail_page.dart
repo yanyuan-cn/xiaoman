@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme.dart';
+
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
@@ -198,7 +200,7 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
                 const SizedBox(height: 18),
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Xm.surface,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
@@ -208,9 +210,9 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
                         onChanged: (bool v) => setState(() => _isLiability = v),
                         title: const Text('这是负债账户',
                             style: TextStyle(fontSize: 14)),
-                        subtitle: const Text('比如房贷、车贷、信用卡欠款',
+                        subtitle: Text('比如房贷、车贷、信用卡欠款',
                             style:
-                                TextStyle(fontSize: 11, color: Colors.black45)),
+                                TextStyle(fontSize: 11, color: Xm.ink3)),
                       ),
                       const Divider(height: 1),
                       SwitchListTile(
@@ -219,9 +221,9 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
                             setState(() => _includeInTotal = v),
                         title: const Text('计入总资产',
                             style: TextStyle(fontSize: 14)),
-                        subtitle: const Text('关掉后这个账户不参与净资产计算',
+                        subtitle: Text('关掉后这个账户不参与净资产计算',
                             style:
-                                TextStyle(fontSize: 11, color: Colors.black45)),
+                                TextStyle(fontSize: 11, color: Xm.ink3)),
                       ),
                     ],
                   ),
@@ -231,11 +233,11 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
                   _label('最近流水'),
                   for (final Txn t in _txns) _txnRow(t),
                   if (_txns.isEmpty)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.symmetric(vertical: 8),
                       child: Text('还没有流水',
                           style:
-                              TextStyle(fontSize: 12, color: Colors.black26)),
+                              TextStyle(fontSize: 12, color: Xm.ink3)),
                     ),
                 ],
               ],
@@ -253,7 +255,7 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
         : null;
     return Container(
       margin: const EdgeInsets.only(bottom: 1),
-      color: Colors.white,
+      color: Xm.surface,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: <Widget>[
@@ -268,7 +270,7 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
                       ? '${t.occurredAt.month}月${t.occurredAt.day}日'
                       : '${t.occurredAt.month}月${t.occurredAt.day}日 · 转入 ${other.name}',
                   style:
-                      const TextStyle(fontSize: 11, color: Colors.black38),
+                      TextStyle(fontSize: 11, color: Xm.ink3),
                 ),
               ],
             ),
@@ -286,7 +288,7 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(text,
-          style: const TextStyle(fontSize: 12, color: Colors.black45)),
+          style: TextStyle(fontSize: 12, color: Xm.ink3)),
     );
   }
 }

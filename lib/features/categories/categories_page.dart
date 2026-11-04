@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme.dart';
+
 import '../../data/models.dart';
 import '../../data/repo.dart';
 import '../../state/data_bus.dart';
@@ -157,9 +159,9 @@ class _CategoriesPageState extends State<CategoriesPage> {
                     children: <Widget>[
                       for (final TxnCategory top in _tops) _section(top),
                       const SizedBox(height: 8),
-                      const Text('隐藏的分类不会出现，但历史流水仍保留原分类。',
+                      Text('隐藏的分类不会出现，但历史流水仍保留原分类。',
                           style:
-                              TextStyle(fontSize: 11, color: Colors.black38)),
+                              TextStyle(fontSize: 11, color: Xm.ink3)),
                     ],
                   ),
           ),
@@ -174,7 +176,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.fromLTRB(14, 6, 6, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Xm.surface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -204,10 +206,10 @@ class _CategoriesPageState extends State<CategoriesPage> {
             ],
           ),
           if (kids.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 2, bottom: 6),
               child: Text('没有二级分类',
-                  style: TextStyle(fontSize: 11, color: Colors.black26)),
+                  style: TextStyle(fontSize: 11, color: Xm.ink3)),
             )
           else
             Wrap(

@@ -117,7 +117,7 @@ class _AssetsPageState extends State<AssetsPage> {
                     _emptyHint('还没有负债项目')
                   else
                     _accountCard(liabilities),
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.fromLTRB(22, 18, 22, 96),
                     child: Text(
                       '余额 = 期初余额 + 收入 − 支出；负债记为负数，还款会减少欠款',
@@ -201,7 +201,7 @@ class _AssetsPageState extends State<AssetsPage> {
   Widget _emptyHint(String text) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 0, 22, 6),
-      child: Text(text, style: const TextStyle(fontSize: 12, color: Xm.ink3)),
+      child: Text(text, style: TextStyle(fontSize: 12, color: Xm.ink3)),
     );
   }
 
@@ -307,7 +307,7 @@ class _AssetsPageState extends State<AssetsPage> {
                               style: Xm.body),
                           const SizedBox(height: 2),
                           Text(sub,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 11.5, color: Xm.ink3)),
                         ],
                       ),
@@ -324,7 +324,7 @@ class _AssetsPageState extends State<AssetsPage> {
                           ),
                         ),
                         if (a.isLiability)
-                          const Padding(
+                          Padding(
                             padding: EdgeInsets.only(top: 2),
                             child: Text('待还',
                                 style: TextStyle(

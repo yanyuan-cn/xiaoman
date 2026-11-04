@@ -231,9 +231,9 @@ class _RecordPageState extends State<RecordPage> {
     return SizedBox(
       height: MediaQuery.sizeOf(context).height * 0.86,
       child: Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFFFBFCFA),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        decoration: BoxDecoration(
+          color: Xm.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: Column(
           children: <Widget>[
@@ -294,7 +294,7 @@ class _RecordPageState extends State<RecordPage> {
           const Spacer(),
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消',
+            child: Text('取消',
                 style: TextStyle(fontSize: 14, color: Xm.ink3)),
           ),
         ],
@@ -324,7 +324,7 @@ class _RecordPageState extends State<RecordPage> {
                 style: TextStyle(
                   fontSize: 40,
                   fontWeight: FontWeight.w600,
-                  color: _amount.isEmpty ? Colors.black26 : Colors.black87,
+                  color: _amount.isEmpty ? Xm.ink3 : Xm.ink,
                 ),
               ),
             ),
@@ -428,14 +428,14 @@ class _RecordPageState extends State<RecordPage> {
       padding: const EdgeInsets.only(top: 6),
       child: Row(
         children: <Widget>[
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text('计入预算', style: TextStyle(fontSize: 14)),
                 SizedBox(height: 2),
                 Text('关掉后这笔钱不算进预算已用',
-                    style: TextStyle(fontSize: 11, color: Colors.black38)),
+                    style: TextStyle(fontSize: 11, color: Xm.ink3)),
               ],
             ),
           ),
@@ -478,7 +478,7 @@ class _RecordPageState extends State<RecordPage> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(text,
-          style: const TextStyle(fontSize: 12, color: Colors.black45)),
+          style: TextStyle(fontSize: 12, color: Xm.ink3)),
     );
   }
 
@@ -499,7 +499,7 @@ class _RecordPageState extends State<RecordPage> {
       <String>['.', '0', '<'],
     ];
     return Container(
-      color: const Color(0xFFF0F4F0),
+      color: Xm.surface2,
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -528,10 +528,10 @@ class _RecordPageState extends State<RecordPage> {
             onTap: () => _tapKey(k),
             child: Center(
               child: k == '<'
-                  ? const Icon(Icons.backspace_outlined,
+                  ? Icon(Icons.backspace_outlined,
                       size: 22, color: Xm.ink2)
                   : Text(k,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 23,
                         fontWeight: FontWeight.w600,
                         color: Xm.ink,

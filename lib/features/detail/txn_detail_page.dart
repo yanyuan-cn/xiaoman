@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme.dart';
+
 import '../../core/dates.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
@@ -107,8 +109,8 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
   Widget build(BuildContext context) {
     final bool isTransfer = _t.isTransfer;
     final Color amountColor = isTransfer
-        ? Colors.black87
-        : (_t.isExpense ? Colors.black87 : const Color(0xFF2E7D32));
+        ? Xm.ink
+        : (_t.isExpense ? Xm.ink : const Color(0xFF2E7D32));
     final String sign = isTransfer ? '' : (_t.isExpense ? '-' : '+');
 
     return Scaffold(
@@ -133,14 +135,14 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Xm.surface,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
               children: <Widget>[
                 Text(_kindText,
                     style:
-                        const TextStyle(fontSize: 12, color: Colors.black45)),
+                        TextStyle(fontSize: 12, color: Xm.ink3)),
                 const SizedBox(height: 10),
                 Text(
                   '$sign¥${formatCents(_t.amount)}',
@@ -203,11 +205,11 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
           SizedBox(
             width: 76,
             child: Text(label,
-                style: const TextStyle(fontSize: 13, color: Colors.black45)),
+                style: TextStyle(fontSize: 13, color: Xm.ink3)),
           ),
-          const Expanded(
+          Expanded(
             child: Text('关掉后不计入预算已用',
-                style: TextStyle(fontSize: 12, color: Colors.black38)),
+                style: TextStyle(fontSize: 12, color: Xm.ink3)),
           ),
           Switch(value: value, onChanged: onChanged),
         ],
@@ -219,7 +221,7 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Xm.surface,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(children: children),
@@ -235,7 +237,7 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
           SizedBox(
             width: 76,
             child: Text(label,
-                style: const TextStyle(fontSize: 13, color: Colors.black45)),
+                style: TextStyle(fontSize: 13, color: Xm.ink3)),
           ),
           Expanded(
             child: selectable
