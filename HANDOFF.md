@@ -1,157 +1,121 @@
-# 项目交接：小满（xiaoman）— v1.1.0
+# 项目交接：小满（xiaoman）
 
-> 本包由原开发环境（Android 手机上的 Ubuntu）打包。目标是让另一个智能体/开发者能在一个 Windows 机器上接手：改 bug、加功能、发版。
-> 包内：`xiaoman/`（源码，57 文件）、`HANDOFF.md`（本文）、`KNOWN-ISSUES.md`（**需要修的问题清单，先看这个**）、`PATHS.md`、`ENVIRONMENT.md`、`git-state.txt`、`reference/`（已修好的 CI 配置与线上 version.json 原文）。
+> 最后更新：2026-11-05 · 对应 **v1.5.0+18**
+>
+> 先读这份，再读 `KNOWN-ISSUES.md`（缺陷与取舍）和 `SETUP.md`（环境与命令）。
+> `PATHS.md` / `ENVIRONMENT.md` / `git-state.txt` 是第一次交接时的环境快照，仅作历史参考。
 
 ## 1. 这是什么
 
 个人自用、**本地优先**的 Android 记账 App。
 
-- 技术栈：Flutter（Dart）+ 本地 SQLite（sqflite），无后端、无账号、无云同步
-- 目标平台：仅 Android（已适配 Android 8+ 自适应图标）；无 iOS 工程
-- 唯一网络行为：检查更新（GET `version.json`）+ 下载新 APK
+- 技术栈：Flutter 3.47.9 / Dart 3.13.7 + sqflite（手写 SQL，无 ORM）
+- 目标平台：仅 Android（`minSdk` 由 Flutter 模板决定，真机 Android 16 可用）
+- 唯一联网行为：检查更新（GET `version.json`）+ 下载新 APK
 - 包名 `com.xiaoman.xiaoman`，桌面名「小满」
-- 当前版本 **1.1.0+13**，已发布并在真机安装验证
 
-## 2. 当前状态
+## 2. 现在是什么状态
 
-### 仓库同步状态（2026-11-04 实测）
+- **仓库和本机一致**，`main` 干净，CI（debug 构建）为绿。
+- **能构建**：`flutter build apk --release` 实测通过（约 55 MB）。
+- **能发版**：`scripts/release.ps1` 一条命令跑完全流程（见 §4）。
+- **有视觉规范**：全部颜色/字号/圆角/动效曲线收在 `lib/core/theme.dart`，
+  来源是设计交付包《小满设计规范》（§2 设计系统、§4 页面、§5 动效）。
+- **有深色模式**：跟随系统 / 浅色 / 深色，我的 → 外观 → 外观模式。
 
-GitHub `main` 已经和本包源码基本同步。用 git blob SHA 逐文件比对（57 个源码文件 + 远端 58 个含 `pubspec.lock`）：
+功能面：记账（收支转）、流水、资产/账户、CSV 导入、CSV/JSON 导出、**从备份恢复**、
+统计图表、预算、定期扣款、分类管理、**搜索筛选**、应用内更新、**应用图标切换**。
 
-| 结果 | 数量 | 明细 |
-|---|---|---|
-| 完全一致 | 54 | `lib/**`、`assets/**`、`pubspec.yaml`、`scripts/**` 等 |
-| 内容不同 | 2 | `.github/workflows/android.yml`（远端缺 INTERNET 注入）、`analysis_options.yaml`（远端更好） |
-| 远端缺 | 1 | `tools/gen_icon.py` |
-| 本地缺 | 1 | `pubspec.lock`（远端有，是好事） |
-| 刻意不同步 | 1 | `version.json`（本地这份是旧的 1.0.2/12，**绝不要上传**） |
+仍然缺的：自动记账、xlsx/xls 导入、统计的更多维度。
+（历史缺口见 `KNOWN-ISSUES.md` 文末「已关闭」。）
 
-也就是说：**v1.1.0 源码已经在仓库里了**，剩下的差异只有上面 4 项，都在 `KNOWN-ISSUES.md` 里。
-
-### 能不能构建
-
-- **打包环境里不能**：aarch64 Linux，没有 Flutter，官方 Linux 包只有 x64（细节见 `ENVIRONMENT.md`）。
-- **你的 Windows 上可以**：v1.1.0 就是在那台机器上构建、签名、发版并真机安装成功的。
-
-在项目根目录（PowerShell）：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\init_android.ps1
-flutter pub get
-flutter build apk --release
-```
-
-产物 `build\app\outputs\flutter-apk\app-release.apk`（约 54.7 MB）。
-
-**必须先跑 `init_android.ps1`**，它做四件事：生成 `android/`、改桌面名为「小满」、注入 `INTERNET` 与 `REQUEST_INSTALL_PACKAGES` 权限、把 `assets\icon\res\*` 复制成启动图标。漏了它，release 包会没有联网权限。
-
-### 功能清单（均已在真机验证）
-
-| 模块 | 内容 |
-|---|---|
-| 记账 | 支出/收入/转账；一级分类必选、二级可选；自绘数字键盘；日期、账户、备注；逐笔「计入预算」开关 |
-| 流水 | 首页按月、按日分组、月度支出/收入/结余；详情页；编辑；删除后 5 秒可撤销 |
-| 资产 | 账户增改、类型（活期/定期/银行卡/钱包/现金）、余额（填实际值反推期初）、负债标记、是否计入总资产；净资产 = 资产 − 负债 |
-| 导入 | CSV 自研解析；指纹去重；批次可整批撤销；导入可勾「不计入预算」 |
-| 导出 | 流水 CSV、全量备份 JSON（**只导不进**） |
-| 统计 | 月/年切换；月视图环形饼图（一级分类，>6 项归并「其他」）+ 分类榜 + 近 6 月柱状；年视图 12 月双柱 + 支出/收入分布条 |
-| 预算 | 总额/餐饮/购物三档；周期「每月固定日 1–28」或「每周」；首页收支卡下方显示已用/剩余/进度条，负数标红 |
-| 定期扣款 | 规则（金额、每月几号、扣款账户、可选还款账户、分类、备注）；到日自动生成；启动与首页都补跑；可撤销 |
-| 分类管理 | 新建一级/二级、重命名、隐藏、级联归档 |
-| 系统 | 应用内检查更新→下载→SHA-256 校验→调起安装；更新源可自定义；存储占用统计与清理；启动申请高刷 |
-
-**已知缺口**：备份不能恢复；导入只吃 CSV；预算的餐饮/购物靠分类名硬匹配；CI 只出 debug 包。
-
-## 3. 关键决策及理由
-
-**这些决定是有意的，不要顺手改回去。**
-
-- **金额一律存「分」的 int，禁止 double** —— 浮点误差会让人对不上账。
-- **时间存 UTC 毫秒**，只在显示时转本地。
-- **转账是 txns 的单条记录**（`kind='transfer'` + `to_account_id`），不是两条 —— 不会重复计入支出，撤销只需删一条。
-- **软删除**（`deleted_at`），首页删除后 5 秒可撤销。
-- **导入去重用指纹** `FNV-1a(kind|amount|分钟|note)`，写进 `dedup_hash`。
-- **sqflite 手写 SQL，不用 drift** —— 开发期本机没有 Flutter，跑不了 `build_runner`。换 drift 等于重写 `repo.dart`。
-- **不用 provider/riverpod/bloc** —— 只有 `DataBus`（ChangeNotifier 单例）做跨页刷新，其余手写 `setState`。
-- **更新机制不用 GitHub API**，用仓库里的 `version.json` 比 `versionCode`；四级回退：GitHub Pages → ghproxy → jsdelivr → raw.githubusercontent.com。
-- **继续用 Flutter 默认 debug keystore 签名** —— 换正式签名会导致已装用户无法覆盖安装、只能卸载（丢数据）。要换必须先做备份恢复。
-- **`android/` 被 `.gitignore` 排除**，靠 `scripts/init_android.ps1` 现场生成；图标放 `assets/icon/res/` 由脚本复制进去。
-- **版本号三段式**：第二位=功能、第三位=修复、满 10 进位。三处同步：`pubspec.yaml`、`lib/core/version.dart`（`kAppVersion`/`kAppBuild`）、仓库根 `version.json` 的 `versionCode`。
-- **发布是手工的**：build → `Get-FileHash` → 发 Release（Tag 和 Title 都写 `vX.Y.Z`）→ 改 `version.json`（apkUrl + sha256）→ 手机检查更新。
-
-## 4. 代码结构
+## 3. 代码结构
 
 ```
 lib/
-  main.dart                 入口：开库 → 清更新缓存 → 补跑定期扣款 → 申请高刷 → runApp
+  main.dart                 入口：开库 → 清缓存 → 补跑定期扣款 → 申请高刷 → runApp
   core/
+    theme.dart              设计 token（颜色/字号/圆角/阴影/渐变）+ ThemeData
+    theme_mode.dart         外观模式控制器（system/light/dark）
     money.dart              元/分互转与格式化
     dates.dart              日期工具、UTC 毫秒
     storage.dart            缓存/数据库体积、清理
-    display.dart            高刷新率（flutter_displaymode）
-    version.dart            版本号 + 更新日志
-    budget_period.dart      预算周期（每月固定日 / 每周）
+    display.dart            高刷新率
+    version.dart            版本号 + 更新日志 + 更新源列表
+    budget_period.dart      预算周期
+    app_icon.dart           桌面图标切换（MethodChannel 到 MainActivity）
   data/
     db.dart                 建表与迁移（kDbVersion = 3）
     models.dart             Txn / Account / TxnCategory / BudgetRule / RecurringRule
-    repo.dart               所有读写（唯一数据入口，约 800 行）
-    update_service.dart     取 version.json、多源回退、自定义源
+    repo.dart               所有读写（唯一数据入口）
+    update_service.dart     取 version.json、多源回退
     apk_updater.dart        下载 APK、SHA-256、调起安装
+    import/decode.dart      编码探测（UTF-8 / BOM / GBK / GB18030）
     import/csv.dart         手写 CSV 解析
     import/draft.dart       表头定位、逐行转换
-  state/
-    ledger.dart             首页状态（含预算汇总）
-    data_bus.dart           跨页刷新信号
-  features/<模块>/          一页一目录：home ledger record detail assets account stats
-                            categories import profile budget recurring
-assets/icon/res/            启动图标（由 tools/gen_icon.py 生成，勿手改 PNG）
-tools/gen_icon.py           图标生成脚本（Pillow + 中文字体）
-scripts/init_android.ps1    生成 android/、中文名、权限、图标
-test/money_test.dart        金额工具单测
-.github/workflows/android.yml 云端构建（debug）
+  ui/components.dart        原子组件（XmCard / XmHeroCard / XmAmount / XmSwipeDelete …）
+  state/                    首页状态、跨页刷新信号
+  features/<模块>/          一页一目录
+assets/icon/res/            启动图标（D1 深色 + D3 浅色两套，含自适应图标 XML）
+scripts/init_android.ps1    生成 android/、权限、图标别名、Kotlin 模板
+scripts/release.ps1         一键发版
+scripts/android/MainActivity.kt  图标切换的原生实现（生成目录会被覆盖，源文件放这里）
+test/                       金额与编码的单测
 ```
 
-**自动生成、不要手改**：`android/`、`build/`、`.dart_tool/`、`assets/icon/res/*.png`（改样式就改 `tools/gen_icon.py` 重跑）。
+**自动生成、不要手改**：`android/`、`build/`、`.dart_tool/`。
+`android/` 里的东西全部由 `scripts/init_android.ps1` 重建，**要改就改脚本**。
 
-## 5. 环境
+## 4. 构建与发版
 
-必须匹配的只有三样：
+```powershell
+# 本地跑
+powershell -ExecutionPolicy Bypass -File scripts\init_android.ps1
+flutter pub get
+flutter run
 
-| 组件 | 要求 | 不匹配会怎样 |
-|---|---|---|
-| Flutter | 3.47.9 stable | 版本差异会报 API 不存在 |
-| JDK | 17 | Gradle 直接拒绝 |
-| Android SDK | platform 36 + build-tools + NDK **28.2.13676358** | 报 `did not install NDK 28.2.13676358` |
+# 发版（自动：构建 → 校验版本 → 建 Release → 传 APK → 改 version.json → 推送）
+powershell -ExecutionPolicy Bypass -File scripts\release.ps1 -Yes -Notes "这次改了什么"
+```
 
-详见 `ENVIRONMENT.md`。国内建议设镜像：`PUB_HOSTED_URL=https://pub.flutter-io.cn`、`FLUTTER_STORAGE_BASE_URL=https://storage.flutter-io.cn`。
+发版前要手动做的一件事：把 `pubspec.yaml` 与 `lib/core/version.dart` 的版本号一起加一
+（脚本会校验两者一致，不一致直接拒绝发版）。`version.json` 由脚本自动改。
 
-## 6. 接手后的顺序（建议）
+环境要求见 `SETUP.md`：Flutter 3.47.9、JDK 17、Android SDK platform 36、
+NDK 28.2.13676358。
 
-1. 读 `KNOWN-ISSUES.md`，先修 I-1（CI 缺 INTERNET）和 I-2/I-3/I-4 这几个「仓库与本地不一致」的小问题。
-2. 在 Windows 上跑一遍 `init_android.ps1` + `flutter build apk --release`，确认能出包（这一步原环境从未验证过）。
-3. 然后按优先级做功能：**备份恢复**（最大数据风险）→ 搜索筛选 → 导入增强 → 预算按分类 id。
-4. 清 `flutter analyze` 的 info（15 条，不影响构建）。
+## 5. 关键决策（别顺手改回去）
 
-## 7. 坑和地雷
+1. 金额一律存「分」的 int，禁止 double；时间存 UTC 毫秒。
+2. 转账是 txns 的单条记录（`kind='transfer'` + `to_account_id`）。
+3. 软删除（`deleted_at`），删除后 5 秒内可撤销。
+4. 导入去重用指纹 `FNV-1a(kind|amount|分钟|note)`，写进 `dedup_hash`。
+5. 不用 provider/riverpod/bloc，只有 `DataBus` 单例广播刷新。
+6. 更新机制不用 GitHub API，用仓库 `version.json` 比 versionCode，多镜像回退。
+7. 继续用 debug keystore 签名 —— 换签名会让已装用户无法覆盖安装（丢数据）。
+8. `android/` 不入库，靠脚本生成；图标切换的 activity-alias 也由脚本注入。
+9. 版本号三处同步：`pubspec.yaml`、`lib/core/version.dart`、`version.json`（最后一项脚本管）。
+10. 主题颜色全部走 `Xm.*` 的 getter（内部读当前调色板），不要在页面里写死 `Color(0x...)`，
+    否则深色模式下会瞎。
 
-1. **release 包缺 INTERNET 权限**（踩过一次，浪费一整轮发布）：现象是应用内检查更新永远「连接失败，已尝试 5 个地址」，但浏览器能打开同一 URL。原因：Flutter 模板只把 `INTERNET` 写进 `debug/AndroidManifest.xml`，主清单没有。注入必须在**打包之前**。
-2. **必须先 `init_android.ps1` 再 build**，否则图标是默认 Flutter 图标、权限也缺。
-3. **签名一致性**：现在是 `C:\Users\<用户名>\.android\debug.keystore`。换电脑/重装/删文件都会生成新 keystore → `INSTALL_FAILED_UPDATE_INCOMPATIBLE`，只能卸载（丢数据）。
-4. **Release 附件没上传也能 Publish**：发完一定点开 Release 看有没有 `app-release.apk`（v1.1.0 因此 404 过一次）。
-5. **`version.json` 的 sha256 必须 64 位**，取自 `Get-FileHash app-release.apk -Algorithm SHA256`。
-6. **GitHub Pages 有缓存**，应用请求已带 `?t=时间戳`，但 Pages 本身可能滞后几分钟。
-7. **`DropdownButtonFormField(initialValue:)` 新版行为不稳**，`recurring_page.dart` 已改成自定义 `_dropdown<T>`，别改回去。
-8. **数据库迁移只真机跑过 v1.0.2 → v1.1.0（v2→v3）**；`v1→v3` 连续升级、空库直接建 v3 后升级都没单独测。迁移用 `PRAGMA table_info` 判断，理论幂等。
-9. **预算按分类名硬匹配**（`食品餐饮`、`购物消费`），改名即失联。
-10. **试过但失败的路（别重复）**：arm64 装 Flutter（官方只有 x64）；qemu + `libc6:amd64`（apt 源只有 arm64）；`excel` 包解析 `.xls`（只支持 xlsx）；Windows 记事本另存 `.yml` 会变成 `.yml.txt`（隐藏扩展名）。
-11. **Gradle 增量缓存偶发失败**（`Could not close incremental caches ... caches-jvm`）：`android/gradle.properties` 加 `kotlin.incremental=false` 与 `org.gradle.caching=false`；`android/` 重新生成后这两行会丢，要重加。
-12. **YAML heredoc 缩进敏感**：`.github/workflows/android.yml` 里 `PY` 结束符必须与 `import` 行同缩进（10 空格），多一个空格整段 python 就失效。
+## 6. 坑和地雷
 
-## 8. 我还不确定的地方
+1. 必须先 `init_android.ps1` 再 build，否则图标是默认的、权限也缺。
+2. release 包缺 `INTERNET` 权限 → 应用内检查更新永远失败（清单模板只写进 debug）。
+3. Release 附件没上传也能 Publish，发完一定点开确认。
+4. `version.json` 的 sha256 必须 64 位，且与上传的 APK 一致。
+5. **先发 Release 再改 `version.json`**，否则用户点到 404。
+6. 网络：`uploads.github.com` 直连更稳；git push 报
+   `schannel failed to receive handshake` 时加 `-c http.proxy=` 走直连。
+7. 图标切换后，部分启动器要回桌面才刷新；两个 alias **不能同时禁用**，
+   `MainActivity.kt` 里是「先启用目标、再停用另一个」。
+8. 大字号金额要给足容器高度，否则会被圆角裁切。
+9. Gradle 增量缓存偶发失败时，`android/gradle.properties` 里加
+   `kotlin.incremental=false`、`org.gradle.caching=false`（脚本已包含）。
+10. `.ps1` 一律用纯 ASCII 写：Windows PowerShell 5.1 按 ANSI 读脚本，中文会解析失败。
 
-- **没有 git 历史**：项目从未在本地 `git init`，所有上传走 GitHub 网页，所以给不出 commit hash / diff。见 `git-state.txt`（已按今天的实测重写）。
-- **本包源码没有经过任何编译**（打包环境不能构建）。v1.1.0 的 APK 是原用户在 Windows 上构建的，构建前 `flutter analyze` 报过 1 个 error（`repo.dart:612`，已修）和 2 个未使用 import（已删），修完后没再跑过 analyze。
-- **`minSdk`/`targetSdk` 看不到**：`android/` 不在包里，由 `flutter create` 决定；真机 Android 16 可跑。
-- **`pubspec.lock` 不在本包**，但在仓库里（远端有）。以仓库那份为准，`sqflite` 已知解析到 2.4.5。
-- `test/money_test.dart` 只测金额工具，其余逻辑零测试。
+## 7. 接手后的顺序（建议）
+
+1. 读 `KNOWN-ISSUES.md`，先看 O-1（预算按分类名硬匹配）。
+2. 跑一次 `init_android.ps1` + `flutter build apk --release`，确认环境通。
+3. 再动功能，每次发版前跑 `flutter analyze` 和 `flutter test`。
