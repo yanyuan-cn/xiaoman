@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '1.3.0';
-const int kAppBuild = 16;
+const String kAppVersion = '1.4.0';
+const int kAppBuild = 17;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,14 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+1.4.0
+· 新增「应用图标」：可在深色墨绿 / 浅色方孔钱两套图标之间切换
+· 删除改为左滑露出删除按钮，5 秒内可撤销
+· 资产和贷款账户也能删除，同样可撤销
+· 记账改成底部面板，不再整页跳走
+· 统计的环形图会扫入、柱状图会长出来
+· 底部导航滑块位置修正
+
 1.3.0
 · 全新视觉：墨绿 + 米白 + 哑光金，整套皮肤按设计规范重做
 · 新图标「墨绿满未满」：开口朝上的环 + 液面线 + 一滴
