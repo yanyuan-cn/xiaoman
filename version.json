@@ -1,8 +1,8 @@
 {
-  "versionCode": 14,
-  "versionName": "1.1.1",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.1.1/app-release.apk",
-  "sha256": "3D16F44838E0D0126C2858FD4A8A33AC9225B0A67894E55B1EE10748C7F0403B",
-  "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "维护版本：功能与 1.1.0 相同，用于验证应用内更新链路"
+    "versionCode":  15,
+    "versionName":  "1.2.0",
+    "apkUrl":  "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.2.0/app-release.apk",
+    "sha256":  "7F2FF7559082AED33A079558014E835E2114A82762B4227EB8B368C4FB525E69",
+    "url":  "https://github.com/yanyuan-cn/xiaoman/releases",
+    "notes":  "新增：从备份恢复，换手机/误删/重装后能把账找回来。备份升级为全量导出（账户、分类、流水、预算、定期扣款、设置），恢复前会自动先备份当前数据。"
 }
