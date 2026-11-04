@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '1.4.0';
-const int kAppBuild = 17;
+const String kAppVersion = '1.5.0';
+const int kAppBuild = 18;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,12 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+1.5.0
+· 新增搜索：关键字、类型、分类、账户、时间、金额区间都能筛
+· 新增深色模式：跟随系统 / 浅色 / 深色，我的 → 外观
+· 导入支持 UTF-16 与 GBK/GB18030 兜底，中文账单不乱码
+· 次级页面统一走主题色，深色下不再出现刺眼白块
+
 1.4.0
 · 新增「应用图标」：可在深色墨绿 / 浅色方孔钱两套图标之间切换
 · 删除改为左滑露出删除按钮，5 秒内可撤销
