@@ -79,7 +79,10 @@ function Invoke-Curl {
 function Push-Main {
     for ($i = 1; $i -le 3; $i++) {
         $r = Invoke-Native -Exe 'git' -AllowFail -NativeArgs @(
-            '-c', 'http.proxy=', '-c', 'https.proxy=', 'push', 'origin', 'main')
+            '-c', 'http.proxy=', '-c', 'https.proxy=',
+            '-c', 'http.https://github.com.proxy=',
+            '-c', 'https.https://github.com.proxy=',
+            'push', 'origin', 'main')
         if ($r.Code -eq 0) { return }
         Write-Host "   push attempt $i (direct) failed, retrying..."
         Start-Sleep -Seconds 5

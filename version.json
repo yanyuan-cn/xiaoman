@@ -1,8 +1,8 @@
 {
-  "versionCode": 20,
-  "versionName": "1.6.0",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.6.0/app-release.apk",
-  "sha256": "DEDF581D1C38B67691D65B456BEBE47E4E89BEE4E03631D02DDD13BA2841D051",
+  "versionCode": 21,
+  "versionName": "1.7.0",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.7.0/app-release.apk",
+  "sha256": "0216BD2ECEC5BC4E79D432DDA7D8BC2C484894BC2F7074BDBBC700717C3876C6",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "新增自动记账：读取支付宝/微信/银行的付款通知，或解析银行短信；只在本机解析，入账前由你确认，同一笔只记一次；我的页新增自动记账入口与教程。"
+  "notes": "自动记账改用屏幕识别：读微信/支付宝支付成功页，付款后延迟约 1.6 秒弹确认窗；覆盖从微信/支付宝切回商户 App 的场景；无悬浮窗权限时退回待确认队列。"
 }
