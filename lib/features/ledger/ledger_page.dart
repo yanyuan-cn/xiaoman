@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../../core/auto_book.dart';
 import '../../core/dates.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
+import '../../data/import/auto_parse.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
 import '../../state/data_bus.dart';
 import '../../state/ledger.dart';
 import '../../ui/components.dart';
+import '../autobook/autobook_page.dart';
 import '../budget/budget_page.dart';
 import '../detail/txn_detail_page.dart';
 import '../import/import_page.dart';
@@ -31,6 +34,30 @@ class _LedgerPageState extends State<LedgerPage> {
     super.initState();
     DataBus.instance.addListener(_onDataChanged);
     _runAutoBills();
+    _checkAutoBills();
+  }
+
+  /// 有通知/短信攒下的待确认账单时，提示一句。
+  Future<void> _checkAutoBills() async {
+    final List<AutoBill> bills = await AutoBook.pendingBills();
+    if (!mounted || bills.isEmpty) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('发现 ${bills.length} 笔待确认账单'),
+        duration: const Duration(seconds: 8),
+        action: SnackBarAction(
+          label: '去处理',
+          onPressed: () async {
+            await Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(
+                builder: (BuildContext _) => AutoBookPage(repo: widget.repo),
+              ),
+            );
+            DataBus.instance.bump();
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _runAutoBills() async {

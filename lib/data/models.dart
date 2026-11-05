@@ -188,6 +188,10 @@ class Txn {
         return '微信导入';
       case 'auto':
         return '定期扣款（自动生成）';
+      case 'auto_notify':
+        return '通知自动记账';
+      case 'auto_sms':
+        return '短信自动记账';
       default:
         return source;
     }

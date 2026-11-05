@@ -218,8 +218,19 @@ class Repo {
     });
   }
 
-  Future<void> softDelete(int id) async {
-    await db.update(
+  /// 自动记账去重用：这条外部 id 是否已经入过账。
+  Future<bool> hasExternalId(String externalId) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'txns',
+      columns: <String>['id'],
+      where: 'external_id = ? AND deleted_at IS NULL',
+      whereArgs: <Object>[externalId],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
+
+  Future<void> softDelete(int id) async {    await db.update(
       'txns',
       <String, Object?>{'deleted_at': DateTime.now().millisecondsSinceEpoch},
       where: 'id = ?',

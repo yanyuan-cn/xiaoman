@@ -99,17 +99,51 @@ if ($text -notmatch 'activity-alias') {
     Write-Host 'Launcher icon switch installed.' -ForegroundColor Green
 }
 
+# --- Auto bookkeeping: SMS permission + notification listener + SMS receiver ---
+if ($text -notmatch 'android.permission.RECEIVE_SMS') {
+    $text = [regex]::Replace(
+        $text,
+        '(<manifest[^>]*>\r?\n)',
+        "`$1    <uses-permission android:name=`"android.permission.RECEIVE_SMS`" />`r`n",
+        1)
+    Write-Host 'SMS permission added.' -ForegroundColor Green
+}
+
+if ($text -notmatch 'AutoBookService') {
+    $auto = @"
+        <service
+            android:name=".AutoBookService"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+        <receiver
+            android:name=".SmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+"@
+    $text = $text.Replace('</application>', $auto + '    </application>')
+    Write-Host 'Auto bookkeeping components installed.' -ForegroundColor Green
+}
+
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($manifest, $text, $utf8NoBom)
 
-# Icon switch needs the custom MainActivity; android/ is generated, so keep the
-# source under scripts/ and copy it in every time.
-$kotlinSrc = Join-Path $root 'scripts\android\MainActivity.kt'
-$kotlinDst = Join-Path $root 'android\app\src\main\kotlin\com\xiaoman\xiaoman\MainActivity.kt'
+# Icon switch + auto bookkeeping need custom Kotlin; android/ is generated, so
+# keep the sources under scripts/android/ and copy them in every time.
+$kotlinSrc = Join-Path $root 'scripts\android'
+$kotlinDst = Join-Path $root 'android\app\src\main\kotlin\com\xiaoman\xiaoman'
 if (Test-Path $kotlinSrc) {
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $kotlinDst) | Out-Null
-    Copy-Item $kotlinSrc $kotlinDst -Force
-    Write-Host 'Icon switch activity installed.' -ForegroundColor Green
+    New-Item -ItemType Directory -Force -Path $kotlinDst | Out-Null
+    Copy-Item (Join-Path $kotlinSrc '*.kt') $kotlinDst -Force
+    Write-Host ("Kotlin sources installed: " + (Get-ChildItem $kotlinDst -Filter *.kt).Count) -ForegroundColor Green
 }
 
 # Replace launcher icons (assets/icon/res -> android/app/src/main/res)

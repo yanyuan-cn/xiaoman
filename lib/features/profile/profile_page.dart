@@ -17,6 +17,7 @@ import '../../data/repo.dart';
 import '../../data/update_service.dart';
 import '../../state/data_bus.dart';
 import '../../ui/components.dart';
+import '../autobook/autobook_page.dart';
 import '../budget/budget_page.dart';
 import '../categories/categories_page.dart';
 import '../import/import_page.dart';
@@ -339,6 +340,14 @@ class _ProfilePageState extends State<ProfilePage> {
   void _toast(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
+    );
+  }
+
+  Future<void> _openAutoBook() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext _) => AutoBookPage(repo: widget.repo),
+      ),
     );
   }
 
@@ -752,6 +761,7 @@ class _ProfilePageState extends State<ProfilePage> {
           const XmSectionTitle('数据', group: true),
           _menuCard(<Widget>[
             _tile(Icons.upload_file_outlined, '导入账单', _openImport, first: true),
+            _tile(Icons.auto_awesome_outlined, '自动记账', _openAutoBook),
             _tile(Icons.pie_chart_outline, '预算', _openBudget),
             _tile(Icons.event_repeat_outlined, '定期扣款', _openRecurring),
             _tile(Icons.undo_rounded, '撤销上次导入', _undoImport),
