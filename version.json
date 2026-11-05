@@ -1,8 +1,8 @@
 {
-  "versionCode": 26,
-  "versionName": "2.2.0",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.2.0/app-release.apk",
-  "sha256": "79B600AD229F5267223BAC8544E24143A1D517984813D98F40ECDF85EC3DDBFC",
+  "versionCode": 27,
+  "versionName": "2.2.1",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.2.1/app-release.apk",
+  "sha256": "6AD521C6F86ACC13E65E584E2F21E69B06CDA033F7EBAFF2FD5464B297BBE433",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "2.2.0：首页顶部可左右滑动切换「今日额度 / 本月概览」；超支不再显示成正数；分类卡支持展开全部分类；我的页重做为数据/个性化/设置/关于四个可折叠板块；备份恢复补了 12 条单测；代码拆分整理。"
+  "notes": "2.2.1：首页两张卡中间的大片空白收掉、进度条加粗提亮、修复分类卡「已用 -59%」这种负百分比。"
 }
