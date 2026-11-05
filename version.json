@@ -1,8 +1,8 @@
 {
-  "versionCode": 22,
-  "versionName": "1.7.1",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.7.1/app-release.apk",
-  "sha256": "52519211260EB8D6F9E123DF00CC5B7E80D51C389AA1693AB296F33A1F2087EE",
+  "versionCode": 23,
+  "versionName": "1.7.2",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.7.2/app-release.apk",
+  "sha256": "45A98854F493A91A76A672D9CA1B9C73E5136C07B732686A9E268299113BF9E7",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "修复自动记账：支持账单详情页的纯数字金额（-151.20 / −9.90）；只在页面切换时识别，同金额 2 分钟内不重复弹；点「记下」后切回小满立即入账；弹窗延迟缩短到 0.9 秒；新增总开关。"
+  "notes": "修复底部导航卡顿与残影、自动记账页打不开、删除后的撤销提示挡住导航栏；新增后台更新：启动时静默检查并下载，点一下即可安装。"
 }
