@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '1.6.0';
-const int kAppBuild = 20;
+const String kAppVersion = '1.7.0';
+const int kAppBuild = 21;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,13 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+1.7.0
+· 自动记账改用「屏幕识别」：微信支付不发通知，改成读支付成功页
+· 付款后约 1.6 秒弹出小确认窗，点「记下」直接入账（刻意延迟，避免被判定异常）
+· 覆盖微信/支付宝支付页，以及从它们切回商户 App 后的页面
+· 没有悬浮窗权限也能用：识别结果先攒着，打开小满再确认
+· 通知与短信继续作为兜底
+
 1.6.0
 · 新增自动记账：读取支付宝/微信/银行的付款通知，或解析银行短信
 · 只在本机解析，入账前由你确认，同一笔只会入账一次
