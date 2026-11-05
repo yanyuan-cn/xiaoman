@@ -1,6 +1,6 @@
 # 问题清单
 
-> 更新时间：2026-11-05 · 对应版本 **1.5.0+18**
+> 更新时间：2026-11-05 · 对应版本 **2.0.0+24**
 >
 > 旧版本文档里 I-1 ~ I-7 已全部关闭，历史记录见文末「已关闭」。
 
@@ -39,7 +39,7 @@ README 里的「现状（v0.1）」是最早的文案，改版时容易忘。发
 1. **金额一律存「分」的 int**，禁止 double —— 浮点误差会让人对不上账。
 2. **时间存 UTC 毫秒**，只在显示时转本地。
 3. **转账是 txns 的单条记录**（`kind='transfer'` + `to_account_id`），不是两条。
-4. **软删除**（`deleted_at`），删除后 5 秒内可撤销。
+4. **软删除**（`deleted_at`），删除后 3 秒内可撤销。
 5. **导入去重用指纹** `FNV-1a(kind|amount|分钟|note)`。
 6. **sqflite 手写 SQL，不用 drift** —— 没有 build_runner 环境。
 7. **不用 provider/riverpod/bloc**，只有 `DataBus`（ChangeNotifier 单例）。
@@ -50,6 +50,8 @@ README 里的「现状（v0.1）」是最早的文案，改版时容易忘。发
 11. **版本号三处同步**：`pubspec.yaml`、`lib/core/version.dart`、`version.json`。
 12. **应用图标切换靠 activity-alias**，Kotlin 模板在 `scripts/android/MainActivity.kt`，
     `android/` 重新生成时由脚本复制回去。
+13. **自动记账已整体移除**（无障碍 / 通知 / 短信 / 悬浮窗），不要再加回来：
+    微信不发支付通知，屏幕识别误报率高，投入产出比不划算。
 
 ---
 

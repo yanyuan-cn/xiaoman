@@ -197,6 +197,8 @@ class Repo {
     String? externalId,
     String? dedupHash,
     bool inBudget = true,
+    int mood = 0,
+    String? workState,
   }) async {
     final int now = DateTime.now().millisecondsSinceEpoch;
     return db.insert('txns', <String, Object?>{
@@ -212,13 +214,15 @@ class Repo {
       'external_id': externalId,
       'dedup_hash': dedupHash,
       'in_budget': inBudget ? 1 : 0,
+      'mood': mood,
+      'work_state': workState,
       'deleted_at': null,
       'created_at': now,
       'updated_at': now,
     });
   }
 
-  /// 自动记账去重用：这条外部 id 是否已经入过账。
+  /// 导入去重用：这条外部 id 是否已经入过账。
   Future<bool> hasExternalId(String externalId) async {
     final List<Map<String, Object?>> rows = await db.query(
       'txns',
@@ -456,6 +460,8 @@ class Repo {
     int? categoryId,
     String? note,
     bool inBudget = true,
+    int mood = 0,
+    String? workState,
   }) async {
     await db.update(
       'txns',
@@ -468,6 +474,8 @@ class Repo {
         'category_id': categoryId,
         'note': note,
         'in_budget': inBudget ? 1 : 0,
+        'mood': mood,
+        'work_state': workState,
         'updated_at': DateTime.now().millisecondsSinceEpoch,
       },
       where: 'id = ?',
@@ -553,6 +561,7 @@ class Repo {
     required int initialBalance,
     required bool isLiability,
     required bool includeInTotal,
+    String? note,
   }) async {
     final List<Map<String, Object?>> rows = await db.query(
       'accounts',
@@ -568,6 +577,7 @@ class Repo {
       'initial_balance': initialBalance,
       'is_liability': isLiability ? 1 : 0,
       'include_in_total': includeInTotal ? 1 : 0,
+      'note': note,
       'sort': nextSort,
       'archived': 0,
       'created_at': DateTime.now().millisecondsSinceEpoch,
@@ -581,6 +591,7 @@ class Repo {
     required int initialBalance,
     required bool isLiability,
     required bool includeInTotal,
+    String? note,
   }) async {
     await db.update(
       'accounts',
@@ -590,6 +601,7 @@ class Repo {
         'initial_balance': initialBalance,
         'is_liability': isLiability ? 1 : 0,
         'include_in_total': includeInTotal ? 1 : 0,
+        'note': note,
       },
       where: 'id = ?',
       whereArgs: <Object>[id],

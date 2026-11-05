@@ -5,17 +5,24 @@ import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
+import '../../ui/components.dart';
 
+/// 记账面板。从首页的「记账条」长出来，所以高度比例是公开常量，
+/// 调用方用 [showXmExpandSheet] 时必须传同一个值。
 class RecordPage extends StatefulWidget {
   const RecordPage({
     super.key,
     required this.repo,
     this.initialKind = 'expense',
+    this.initialCategoryId,
     this.editing,
   });
 
+  static const double heightFactor = 0.88;
+
   final Repo repo;
   final String initialKind;
+  final int? initialCategoryId;
   final Txn? editing;
 
   @override
@@ -30,6 +37,8 @@ class _RecordPageState extends State<RecordPage> {
   int? _accountId;
   int? _toAccountId;
   DateTime _date = DateTime.now();
+  int _mood = 0;
+  String? _workState;
   final TextEditingController _note = TextEditingController();
 
   List<Account> _accounts = const <Account>[];
@@ -41,7 +50,6 @@ class _RecordPageState extends State<RecordPage> {
   bool get _isEditing => widget.editing != null;
   bool get _isTransfer => _kind == 'transfer';
 
-  /// 金额 > 0 才允许提交（§4.5 交互规则）
   bool get _canSave => (parseYuanToCents(_amount) ?? 0) > 0;
 
   @override
@@ -53,6 +61,8 @@ class _RecordPageState extends State<RecordPage> {
       _date = e.occurredAt;
       _accountId = e.accountId;
       _toAccountId = e.toAccountId;
+      _mood = e.mood;
+      _workState = e.workState;
       _note.text = e.note ?? '';
     }
     _load();
@@ -82,6 +92,8 @@ class _RecordPageState extends State<RecordPage> {
           break;
         }
       }
+    } else if (widget.initialCategoryId != null) {
+      _parentId = widget.initialCategoryId;
     }
 
     setState(() {
@@ -148,8 +160,7 @@ class _RecordPageState extends State<RecordPage> {
       lastDate: DateTime(now.year + 1, 12, 31),
     );
     if (picked == null) return;
-    setState(() =>
-        _date = DateTime(picked.year, picked.month, picked.day, 12));
+    setState(() => _date = DateTime(picked.year, picked.month, picked.day, 12));
   }
 
   void _toast(String msg) {
@@ -169,7 +180,6 @@ class _RecordPageState extends State<RecordPage> {
       _toast('请选择账户');
       return;
     }
-
     if (!_isTransfer && _parentId == null) {
       _toast('请选择分类');
       return;
@@ -189,6 +199,8 @@ class _RecordPageState extends State<RecordPage> {
     setState(() => _saving = true);
     final String note = _note.text.trim();
     final int? categoryId = _isTransfer ? null : (_childId ?? _parentId);
+    final int mood = _isTransfer ? 0 : _mood;
+    final String? state = _isTransfer ? null : _workState;
 
     if (_isEditing) {
       await widget.repo.updateTxn(
@@ -201,6 +213,8 @@ class _RecordPageState extends State<RecordPage> {
         categoryId: categoryId,
         note: note.isEmpty ? null : note,
         inBudget: _inBudget,
+        mood: mood,
+        workState: state,
       );
     } else if (_isTransfer) {
       await widget.repo.addTransfer(
@@ -219,6 +233,8 @@ class _RecordPageState extends State<RecordPage> {
         categoryId: categoryId,
         note: note.isEmpty ? null : note,
         inBudget: _inBudget,
+        mood: mood,
+        workState: state,
       );
     }
 
@@ -228,102 +244,79 @@ class _RecordPageState extends State<RecordPage> {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: MediaQuery.sizeOf(context).height * 0.86,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Xm.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: Column(
-          children: <Widget>[
-            const SizedBox(height: 8),
-            _handle(),
-            _header(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-              child: SegmentedButton<String>(
-                segments: const <ButtonSegment<String>>[
-                  ButtonSegment<String>(value: 'expense', label: Text('支出')),
-                  ButtonSegment<String>(value: 'income', label: Text('收入')),
-                  ButtonSegment<String>(value: 'transfer', label: Text('转账')),
-                ],
-                selected: <String>{_kind},
-                onSelectionChanged: (Set<String> s) => _switchKind(s.first),
+    final double h = MediaQuery.sizeOf(context).height * RecordPage.heightFactor;
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: SizedBox(
+        height: h,
+        width: double.infinity,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Xm.bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: <Widget>[
+              XmSheetHeader(
+                title: _isEditing ? '编辑账单' : '记一笔',
+                subtitle: _isEditing ? null : '选好分类，输入金额就行',
+                onClose: () => Navigator.of(context).pop(false),
               ),
-            ),
-            _amountBar(),
-            Expanded(
-              child: _ready
-                  ? _form()
-                  : const Center(child: CircularProgressIndicator()),
-            ),
-            _keypad(),
-            _saveButton(),
-          ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
+                child: XmSegmented<String>(
+                  values: const <String>['expense', 'income', 'transfer'],
+                  labels: const <String>['支出', '收入', '转账'],
+                  value: _kind,
+                  onChanged: _switchKind,
+                ),
+              ),
+              _amountBar(),
+              Expanded(
+                child: _ready
+                    ? _form()
+                    : const Center(child: CircularProgressIndicator()),
+              ),
+              _keypad(),
+              _saveButton(),
+            ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _handle() {
-    return Container(
-      width: 38,
-      height: 4.5,
-      margin: const EdgeInsets.only(bottom: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFD8E0DA),
-        borderRadius: BorderRadius.circular(3),
-      ),
-    );
-  }
-
-  Widget _header() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
-      child: Row(
-        children: <Widget>[
-          Text(
-            _isEditing ? '编辑账单' : '记一笔',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.2,
-            ),
-          ),
-          const Spacer(),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text('取消',
-                style: TextStyle(fontSize: 14, color: Xm.ink3)),
-          ),
-        ],
       ),
     );
   }
 
   Widget _amountBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-      alignment: Alignment.centerRight,
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+      decoration: BoxDecoration(
+        color: Xm.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Xm.line),
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: <Widget>[
-          const Padding(
-            padding: EdgeInsets.only(bottom: 6),
-            child: Text('¥', style: TextStyle(fontSize: 20)),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 5),
+            child: Text('¥',
+                style: Xm.text(19, FontWeight.w600, color: Xm.ink3)),
           ),
-          const SizedBox(width: 6),
-          Flexible(
+          const SizedBox(width: 8),
+          Expanded(
             child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerRight,
               child: Text(
                 _amount.isEmpty ? '0.00' : _amount,
-                style: TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.w600,
+                style: Xm.text(
+                  38,
+                  FontWeight.w700,
+                  spacing: -1,
+                  height: 1,
+                  tabular: true,
                   color: _amount.isEmpty ? Xm.ink3 : Xm.ink,
                 ),
               ),
@@ -338,156 +331,240 @@ class _RecordPageState extends State<RecordPage> {
     if (_isTransfer) return _transferForm();
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       children: <Widget>[
-        _label('分类'),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: <Widget>[
-            for (final TxnCategory c in _topCategories)
-              _chip(
-                c.name,
-                _parentId == c.id,
-                () => setState(() {
-                  _parentId = c.id;
-                  _childId = null;
-                }),
-              ),
-          ],
-        ),
-        if (_childCategories.isNotEmpty) ...<Widget>[
-          const SizedBox(height: 14),
-          _label('二级分类（可选）'),
+        _section(
+          '分类',
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: <Widget>[
-              for (final TxnCategory c in _childCategories)
-                _chip(
-                  c.name,
-                  _childId == c.id,
-                  () => setState(() => _childId = _childId == c.id ? null : c.id),
+              for (final TxnCategory c in _topCategories)
+                XmChoice(
+                  label: c.name,
+                  dense: true,
+                  selected: _parentId == c.id,
+                  onTap: () => setState(() {
+                    _parentId = c.id;
+                    _childId = null;
+                  }),
                 ),
             ],
           ),
-        ],
-        const SizedBox(height: 14),
-        _label('账户'),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: <Widget>[
-            for (final Account a in _accounts)
-              _chip(a.name, _accountId == a.id,
-                  () => setState(() => _accountId = a.id)),
-          ],
         ),
-        const SizedBox(height: 6),
-        _dateRow(),
-        _noteField(),
-        _budgetSwitch(),
+        if (_childCategories.isNotEmpty)
+          _section(
+            '二级分类',
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                for (final TxnCategory c in _childCategories)
+                  XmChoice(
+                    label: c.name,
+                    dense: true,
+                    selected: _childId == c.id,
+                    onTap: () => setState(
+                        () => _childId = _childId == c.id ? null : c.id),
+                  ),
+              ],
+            ),
+          ),
+        _section(
+          '账户',
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              for (final Account a in _accounts)
+                XmChoice(
+                  label: a.name,
+                  dense: true,
+                  selected: _accountId == a.id,
+                  onTap: () => setState(() => _accountId = a.id),
+                ),
+            ],
+          ),
+        ),
+        _section(
+          '这笔钱花得',
+          Row(
+            children: <Widget>[
+              for (final XmMood m in <XmMood>[XmMood.happy, XmMood.regret])
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: _moodButton(m),
+                ),
+            ],
+          ),
+        ),
+        _section(
+          '当时在',
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              for (final String s in XmWorkState.presets)
+                XmChoice(
+                  label: s,
+                  dense: true,
+                  selected: _workState == s,
+                  onTap: () => setState(
+                      () => _workState = _workState == s ? null : s),
+                ),
+            ],
+          ),
+        ),
+        _section(
+          '其他',
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 4, 8, 4),
+            decoration: BoxDecoration(
+              color: Xm.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Xm.line),
+            ),
+            child: Column(
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Text('日期', style: Xm.text(14, FontWeight.w500)),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: _pickDate,
+                      icon: const Icon(Icons.event_rounded, size: 17),
+                      label: Text(fmtDate(_date),
+                          style: Xm.text(14, FontWeight.w600)),
+                    ),
+                  ],
+                ),
+                const XmDivider(indent: 0, endIndent: 0),
+                Row(
+                  children: <Widget>[
+                    Text('计入预算', style: Xm.text(14, FontWeight.w500)),
+                    const Spacer(),
+                    Switch(
+                      value: _inBudget,
+                      onChanged: (bool v) => setState(() => _inBudget = v),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        XmField(
+          controller: _note,
+          hint: '备注（可选）',
+          maxLength: 40,
+          textInputAction: TextInputAction.done,
+        ),
       ],
+    );
+  }
+
+  Widget _moodButton(XmMood m) {
+    final bool selected = _mood == m.code;
+    return GestureDetector(
+      onTap: () => setState(() => _mood = selected ? 0 : m.code),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? Xm.brand : Xm.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? Colors.transparent : Xm.line,
+          ),
+        ),
+        child: Text(
+          '${m.emoji} ${m.label}',
+          style: Xm.text(
+            13.5,
+            FontWeight.w600,
+            color: selected
+                ? (Xm.isDark ? const Color(0xFF08120D) : Colors.white)
+                : Xm.ink2,
+          ),
+        ),
+      ),
     );
   }
 
   Widget _transferForm() {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       children: <Widget>[
-        _label('从哪个账户转出'),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: <Widget>[
-            for (final Account a in _accounts)
-              _chip(a.name, _accountId == a.id,
-                  () => setState(() => _accountId = a.id)),
-          ],
+        _section(
+          '从哪个账户转出',
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              for (final Account a in _accounts)
+                XmChoice(
+                  label: a.name,
+                  dense: true,
+                  selected: _accountId == a.id,
+                  onTap: () => setState(() => _accountId = a.id),
+                ),
+            ],
+          ),
         ),
-        const SizedBox(height: 16),
-        _label('转到哪个账户'),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: <Widget>[
-            for (final Account a in _accounts)
-              _chip(a.name, _toAccountId == a.id,
-                  () => setState(() => _toAccountId = a.id)),
-          ],
+        _section(
+          '转到哪个账户',
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              for (final Account a in _accounts)
+                XmChoice(
+                  label: a.name,
+                  dense: true,
+                  selected: _toAccountId == a.id,
+                  onTap: () => setState(() => _toAccountId = a.id),
+                ),
+            ],
+          ),
         ),
-        const SizedBox(height: 6),
-        _dateRow(),
-        _noteField(),
+        _section(
+          '日期',
+          Row(
+            children: <Widget>[
+              TextButton.icon(
+                onPressed: _pickDate,
+                icon: const Icon(Icons.event_rounded, size: 17),
+                label: Text(fmtDate(_date)),
+              ),
+            ],
+          ),
+        ),
+        XmField(
+          controller: _note,
+          hint: '备注（可选）',
+          maxLength: 40,
+          textInputAction: TextInputAction.done,
+        ),
       ],
     );
   }
 
-  Widget _budgetSwitch() {
+  Widget _section(String title, Widget child) {
     return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Row(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text('计入预算', style: TextStyle(fontSize: 14)),
-                SizedBox(height: 2),
-                Text('关掉后这笔钱不算进预算已用',
-                    style: TextStyle(fontSize: 11, color: Xm.ink3)),
-              ],
-            ),
+          Padding(
+            padding: const EdgeInsets.only(left: 2, bottom: 7),
+            child: Text(title,
+                style: Xm.text(12, FontWeight.w500,
+                    spacing: 0.3, color: Xm.ink3)),
           ),
-          Switch(
-            value: _inBudget,
-            onChanged: (bool v) => setState(() => _inBudget = v),
-          ),
+          child,
         ],
       ),
-    );
-  }
-
-  Widget _dateRow() {
-    return Row(
-      children: <Widget>[
-        TextButton.icon(
-          onPressed: _pickDate,
-          icon: const Icon(Icons.event, size: 18),
-          label: Text(fmtDate(_date)),
-        ),
-      ],
-    );
-  }
-
-  Widget _noteField() {
-    return TextField(
-      controller: _note,
-      maxLength: 40,
-      textInputAction: TextInputAction.done,
-      decoration: const InputDecoration(
-        hintText: '备注（可选）',
-        counterText: '',
-        isDense: true,
-        border: OutlineInputBorder(),
-      ),
-    );
-  }
-
-  Widget _label(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(text,
-          style: TextStyle(fontSize: 12, color: Xm.ink3)),
-    );
-  }
-
-  Widget _chip(String label, bool selected, VoidCallback onTap) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      showCheckmark: false,
-      onSelected: (bool _) => onTap(),
     );
   }
 
@@ -499,8 +576,7 @@ class _RecordPageState extends State<RecordPage> {
       <String>['.', '0', '<'],
     ];
     return Container(
-      color: Xm.surface2,
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
@@ -517,25 +593,22 @@ class _RecordPageState extends State<RecordPage> {
 
   Widget _key(String k) {
     return SizedBox(
-      height: 50,
+      height: 48,
       child: Padding(
         padding: const EdgeInsets.all(2),
         child: Material(
           color: Xm.surface,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(13),
           child: InkWell(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(13),
             onTap: () => _tapKey(k),
             child: Center(
               child: k == '<'
-                  ? Icon(Icons.backspace_outlined,
-                      size: 22, color: Xm.ink2)
-                  : Text(k,
-                      style: TextStyle(
-                        fontSize: 23,
-                        fontWeight: FontWeight.w600,
-                        color: Xm.ink,
-                      )),
+                  ? Icon(Icons.backspace_outlined, size: 21, color: Xm.ink2)
+                  : Text(
+                      k,
+                      style: Xm.text(23, FontWeight.w600, height: 1),
+                    ),
             ),
           ),
         ),
@@ -545,14 +618,15 @@ class _RecordPageState extends State<RecordPage> {
 
   Widget _saveButton() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+      padding: EdgeInsets.fromLTRB(
+          16, 6, 16, 10 + MediaQuery.paddingOf(context).bottom * 0.2),
       child: SizedBox(
         width: double.infinity,
-        height: 50,
+        height: 52,
         child: DecoratedBox(
           decoration: BoxDecoration(
             gradient: _canSave ? Xm.buttonGradient : null,
-            color: _canSave ? null : Xm.ink3,
+            color: _canSave ? null : (Xm.isDark ? Xm.surface2 : Xm.line),
             borderRadius: BorderRadius.circular(Xm.rButton),
           ),
           child: Material(
@@ -563,11 +637,11 @@ class _RecordPageState extends State<RecordPage> {
               child: Center(
                 child: Text(
                   _saving ? '保存中…' : (_isEditing ? '保存修改' : '完成'),
-                  style: const TextStyle(
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1,
-                    color: Colors.white,
+                  style: Xm.text(
+                    15.5,
+                    FontWeight.w600,
+                    spacing: 1,
+                    color: _canSave ? Colors.white : Xm.ink3,
                   ),
                 ),
               ),

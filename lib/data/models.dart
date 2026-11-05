@@ -6,6 +6,7 @@ class Account {
     required this.initialBalance,
     this.isLiability = false,
     this.includeInTotal = true,
+    this.note,
   });
 
   final int id;
@@ -15,6 +16,9 @@ class Account {
   final bool isLiability;
   final bool includeInTotal;
 
+  /// 账户备注，显示在名称后面（如「工资卡，每月 15 号发薪」）。
+  final String? note;
+
   factory Account.fromMap(Map<String, Object?> m) => Account(
         id: m['id']! as int,
         name: m['name']! as String,
@@ -22,6 +26,7 @@ class Account {
         initialBalance: (m['initial_balance'] as int?) ?? 0,
         isLiability: ((m['is_liability'] as num?)?.toInt() ?? 0) == 1,
         includeInTotal: ((m['include_in_total'] as num?)?.toInt() ?? 1) == 1,
+        note: m['note'] as String?,
       );
 
   static String typeLabel(String type) {
@@ -133,6 +138,45 @@ class RecurringRule {
       );
 }
 
+/// 记账时的情绪标记。0 = 没标，1 = 满意，2 = 后悔。
+///
+/// 只用正面 / 负面两个表情，不做五档评分：记账是一天几十次的动作，
+/// 选项一多就没人愿意点。
+enum XmMood {
+  none(0, '未标记', ''),
+  happy(1, '满意', '😌'),
+  regret(2, '后悔', '😖');
+
+  const XmMood(this.code, this.label, this.emoji);
+
+  final int code;
+  final String label;
+  final String emoji;
+
+  bool get isSet => this != XmMood.none;
+
+  static XmMood fromCode(int? code) {
+    for (final XmMood m in XmMood.values) {
+      if (m.code == code) return m;
+    }
+    return XmMood.none;
+  }
+}
+
+/// 记账时的状态标签（“当时在干什么”）。存字符串，方便以后加词。
+class XmWorkState {
+  XmWorkState._();
+
+  static const List<String> presets = <String>[
+    '工作',
+    '加班',
+    '休息',
+    '通勤',
+    '出差',
+    '假期',
+  ];
+}
+
 class Txn {
   const Txn({
     required this.id,
@@ -147,6 +191,8 @@ class Txn {
     this.merchant,
     this.externalId,
     this.inBudget = true,
+    this.mood = 0,
+    this.workState,
     this.createdAtMs = 0,
     this.updatedAtMs = 0,
   });
@@ -166,8 +212,16 @@ class Txn {
   /// 是否计入预算。转账默认不计入。
   final bool inBudget;
 
+  /// 情绪标记，见 [XmMood]。
+  final int mood;
+
+  /// 状态标签，如「加班」，空表示没填。
+  final String? workState;
+
   final int createdAtMs;
   final int updatedAtMs;
+
+  XmMood get moodEnum => XmMood.fromCode(mood);
 
   DateTime get occurredAt =>
       DateTime.fromMillisecondsSinceEpoch(occurredAtMs, isUtc: true).toLocal();
@@ -210,6 +264,8 @@ class Txn {
         merchant: m['merchant'] as String?,
         externalId: m['external_id'] as String?,
         inBudget: ((m['in_budget'] as num?)?.toInt() ?? 1) == 1,
+        mood: (m['mood'] as num?)?.toInt() ?? 0,
+        workState: m['work_state'] as String?,
         createdAtMs: (m['created_at'] as num?)?.toInt() ?? 0,
         updatedAtMs: (m['updated_at'] as num?)?.toInt() ?? 0,
       );

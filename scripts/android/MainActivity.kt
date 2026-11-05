@@ -1,25 +1,19 @@
 package com.xiaoman.xiaoman
 
-import android.Manifest
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
-import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 /**
- * Two native bridges:
- *  - "xiaoman/icon"      launcher icon switch (two activity-alias entries)
- *  - "xiaoman/autobook"  auto bookkeeping: notification listener + SMS receiver
+ * Native bridge:
+ *  - "xiaoman/icon"  launcher icon switch (two activity-alias entries)
  */
 class MainActivity : FlutterActivity() {
 
     private val iconChannel = "xiaoman/icon"
-    private val autoChannel = "xiaoman/autobook"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -31,67 +25,6 @@ class MainActivity : FlutterActivity() {
                     "set" -> {
                         val id = call.argument<String>("id") ?: "d1"
                         applyIcon(id)
-                        result.success(true)
-                    }
-                    else -> result.notImplemented()
-                }
-            }
-
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, autoChannel)
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "getPending" -> result.success(PendingStore.pending(this))
-                    "clearPending" -> {
-                        PendingStore.clear(this)
-                        result.success(true)
-                    }
-                    "pruneHandled" -> {
-                        PendingStore.pruneHandled(this)
-                        result.success(true)
-                    }
-                    "notificationAccess" -> result.success(hasNotificationAccess())
-                    "openNotificationSettings" -> {
-                        startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                        result.success(true)
-                    }
-                    "hasSmsPermission" -> result.success(
-                        checkSelfPermission(Manifest.permission.RECEIVE_SMS) ==
-                            PackageManager.PERMISSION_GRANTED
-                    )
-                    "requestSmsPermission" -> {
-                        requestPermissions(arrayOf(Manifest.permission.RECEIVE_SMS), 1001)
-                        result.success(true)
-                    }
-                    "openAppSettings" -> {
-                        val intent = Intent(
-                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                            Uri.fromParts("package", packageName, null)
-                        )
-                        startActivity(intent)
-                        result.success(true)
-                    }
-                    "getSwitch" -> {
-                        val key = call.argument<String>("key") ?: ""
-                        result.success(PendingStore.switchOn(this, key))
-                    }
-                    "setSwitch" -> {
-                        val key = call.argument<String>("key") ?: ""
-                        val on = call.argument<Boolean>("on") ?: true
-                        PendingStore.setSwitch(this, key, on)
-                        result.success(true)
-                    }
-                    "accessibilityEnabled" -> result.success(hasAccessibility())
-                    "openAccessibilitySettings" -> {
-                        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                        result.success(true)
-                    }
-                    "hasOverlayPermission" -> result.success(Settings.canDrawOverlays(this))
-                    "openOverlaySettings" -> {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:$packageName")
-                        )
-                        startActivity(intent)
                         result.success(true)
                     }
                     else -> result.notImplemented()
@@ -126,27 +59,5 @@ class MainActivity : FlutterActivity() {
             PackageManager.DONT_KILL_APP
         )
         prefs().edit().putString("icon", id).apply()
-    }
-
-    // ---------------- auto bookkeeping ----------------
-
-    private fun hasNotificationAccess(): Boolean {
-        val flat = Settings.Secure.getString(
-            contentResolver,
-            "enabled_notification_listeners"
-        ) ?: return false
-        return flat.contains(packageName)
-    }
-
-    /** 无障碍服务是否已被系统启用（用户可能在系统设置里关掉）。 */
-    private fun hasAccessibility(): Boolean {
-        val am = getSystemService(Context.ACCESSIBILITY_SERVICE)
-            as? android.view.accessibility.AccessibilityManager ?: return false
-        val services = am.getEnabledAccessibilityServiceList(
-            android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK
-        )
-        return services.any {
-            it.resolveInfo?.serviceInfo?.packageName == packageName
-        }
     }
 }

@@ -2,7 +2,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 const String kDbName = 'xiaoman.db';
-const int kDbVersion = 3;
+const int kDbVersion = 4;
 
 Future<Database> openLedgerDb() async {
   final String path = p.join(await getDatabasesPath(), kDbName);
@@ -24,6 +24,7 @@ const List<String> _schema = <String>[
     initial_balance INTEGER NOT NULL DEFAULT 0,
     is_liability INTEGER NOT NULL DEFAULT 0,
     include_in_total INTEGER NOT NULL DEFAULT 1,
+    note TEXT,
     sort INTEGER NOT NULL DEFAULT 0,
     archived INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL
@@ -54,6 +55,8 @@ const List<String> _schema = <String>[
     external_id TEXT,
     dedup_hash TEXT,
     in_budget INTEGER NOT NULL DEFAULT 1,
+    mood INTEGER NOT NULL DEFAULT 0,
+    work_state TEXT,
     deleted_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
@@ -180,8 +183,32 @@ Future<void> _upgrade(Database db, int oldVersion, int newVersion) async {
       )
     ''');
   }
-}
 
+  // v4：流水加「表情 / 状态」，账户加「备注」。
+  if (oldVersion < 4) {
+    final List<String> txnCols = <String>[
+      for (final Map<String, Object?> r in await db.rawQuery(
+          'PRAGMA table_info(txns)'))
+        r['name']! as String,
+    ];
+    if (!txnCols.contains('mood')) {
+      await db.execute(
+          'ALTER TABLE txns ADD COLUMN mood INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!txnCols.contains('work_state')) {
+      await db.execute('ALTER TABLE txns ADD COLUMN work_state TEXT');
+    }
+
+    final List<String> accCols = <String>[
+      for (final Map<String, Object?> r in await db.rawQuery(
+          'PRAGMA table_info(accounts)'))
+        r['name']! as String,
+    ];
+    if (!accCols.contains('note')) {
+      await db.execute('ALTER TABLE accounts ADD COLUMN note TEXT');
+    }
+  }
+}
 const List<List<String>> _seedAccounts = <List<String>>[
   <String>['支付宝', 'ewallet'],
   <String>['微信', 'ewallet'],

@@ -1,6 +1,6 @@
 # 项目交接：小满（xiaoman）
 
-> 最后更新：2026-11-05 · 对应 **v1.5.0+18**
+> 最后更新：2026-11-05 · 对应 **v2.0.0+24**
 >
 > 先读这份，再读 `KNOWN-ISSUES.md`（缺陷与取舍）和 `SETUP.md`（环境与命令）。
 > `PATHS.md` / `ENVIRONMENT.md` / `git-state.txt` 是第一次交接时的环境快照，仅作历史参考。
@@ -26,7 +26,7 @@
 功能面：记账（收支转）、流水、资产/账户、CSV 导入、CSV/JSON 导出、**从备份恢复**、
 统计图表、预算、定期扣款、分类管理、**搜索筛选**、应用内更新、**应用图标切换**。
 
-仍然缺的：自动记账、xlsx/xls 导入、统计的更多维度。
+仍然缺的：xlsx/xls 导入、统计的更多维度、心情/状态的统计视图。
 （历史缺口见 `KNOWN-ISSUES.md` 文末「已关闭」。）
 
 ## 3. 代码结构
@@ -45,15 +45,16 @@ lib/
     budget_period.dart      预算周期
     app_icon.dart           桌面图标切换（MethodChannel 到 MainActivity）
   data/
-    db.dart                 建表与迁移（kDbVersion = 3）
-    models.dart             Txn / Account / TxnCategory / BudgetRule / RecurringRule
+    db.dart                 建表与迁移（kDbVersion = 4）
+    models.dart             Txn / Account / TxnCategory / BudgetRule / RecurringRule / XmMood
     repo.dart               所有读写（唯一数据入口）
     update_service.dart     取 version.json、多源回退
     apk_updater.dart        下载 APK、SHA-256、调起安装
     import/decode.dart      编码探测（UTF-8 / BOM / GBK / GB18030）
     import/csv.dart         手写 CSV 解析
     import/draft.dart       表头定位、逐行转换
-  ui/components.dart        原子组件（XmCard / XmHeroCard / XmAmount / XmSwipeDelete …）
+  ui/motion.dart            「从这一行放大进来」的路由与面板（XmExpandRoute / showXmExpandSheet）
+  ui/components.dart        原子组件 + 统一界面语言（XmPageScaffold / XmSegmented / XmChoice / XmField / XmScrollTabs）
   state/                    首页状态、跨页刷新信号
   features/<模块>/          一页一目录
 assets/icon/res/            启动图标（D1 深色 + D3 浅色两套，含自适应图标 XML）
@@ -88,7 +89,7 @@ NDK 28.2.13676358。
 
 1. 金额一律存「分」的 int，禁止 double；时间存 UTC 毫秒。
 2. 转账是 txns 的单条记录（`kind='transfer'` + `to_account_id`）。
-3. 软删除（`deleted_at`），删除后 5 秒内可撤销。
+3. 软删除（`deleted_at`），删除后 3 秒内可撤销。
 4. 导入去重用指纹 `FNV-1a(kind|amount|分钟|note)`，写进 `dedup_hash`。
 5. 不用 provider/riverpod/bloc，只有 `DataBus` 单例广播刷新。
 6. 更新机制不用 GitHub API，用仓库 `version.json` 比 versionCode，多镜像回退。

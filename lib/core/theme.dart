@@ -275,7 +275,7 @@ class Xm {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle: amountL,
+        titleTextStyle: text(19, FontWeight.w700, spacing: -0.4),
         iconTheme: IconThemeData(color: ink2, size: 20),
         actionsIconTheme: IconThemeData(color: ink2, size: 20),
         systemOverlayStyle: dark

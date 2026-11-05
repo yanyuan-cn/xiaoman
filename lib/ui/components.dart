@@ -419,6 +419,474 @@ class XmTag extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 统一界面语言（v2.0）
+//
+// 之前的问题：记账面板用 SegmentedButton + ChoiceChip + OutlineInputBorder，
+// 资产/详情页用 AppBar + 裸 Container，首页用自绘 FAB —— 三套语言拼在一起
+// 就显得割裂。下面这组组件是唯一的一套，新页面都用它们拼。
+// ---------------------------------------------------------------------------
+
+/// 圆形图标按钮：所有页面右上角的操作都用它，尺寸/底色一致。
+class XmIconButton extends StatelessWidget {
+  const XmIconButton({
+    super.key,
+    required this.icon,
+    this.onTap,
+    this.tooltip,
+    this.filled = false,
+    this.size = 38,
+  });
+
+  final IconData icon;
+  final VoidCallback? onTap;
+  final String? tooltip;
+  final bool filled;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget button = Material(
+      color: filled ? Xm.brandLL : Colors.transparent,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: size,
+          height: size,
+          child: Icon(icon, size: 19, color: Xm.ink2),
+        ),
+      ),
+    );
+    if (tooltip == null) return button;
+    return Tooltip(message: tooltip!, child: button);
+  }
+}
+
+/// 二级页面骨架：返回键 + 大标题 + 右侧操作，风格和记账面板的头部一致。
+///
+/// 用它替换 `Scaffold(appBar: AppBar(...))`，二级页和面板就不会一个像
+/// Material 默认页、一个像自绘面板。
+class XmPageScaffold extends StatelessWidget {
+  const XmPageScaffold({
+    super.key,
+    required this.title,
+    required this.body,
+    this.subtitle,
+    this.actions = const <Widget>[],
+    this.bottomBar,
+    this.showBack = true,
+    this.padding = EdgeInsets.zero,
+  });
+
+  final String title;
+  final String? subtitle;
+  final Widget body;
+  final List<Widget> actions;
+  final Widget? bottomBar;
+  final bool showBack;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final double top = MediaQuery.paddingOf(context).top;
+    return Scaffold(
+      backgroundColor: Xm.bg,
+      body: Column(
+        children: <Widget>[
+          Padding(
+            padding: EdgeInsets.fromLTRB(10, top + 6, 10, 6),
+            child: Row(
+              children: <Widget>[
+                if (showBack)
+                  XmIconButton(
+                    icon: Icons.arrow_back_ios_new_rounded,
+                    tooltip: '返回',
+                    onTap: () => Navigator.of(context).maybePop(),
+                  )
+                else
+                  const SizedBox(width: 8),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Xm.text(19, FontWeight.w700, spacing: -0.4),
+                      ),
+                      if (subtitle != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            subtitle!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Xm.captionS,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                ...actions,
+              ],
+            ),
+          ),
+          Expanded(child: Padding(padding: padding, child: body)),
+          if (bottomBar != null) bottomBar!,
+        ],
+      ),
+    );
+  }
+}
+
+/// 底部面板头部：一根把手 + 标题 + 右侧按钮。
+class XmSheetHeader extends StatelessWidget {
+  const XmSheetHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.onClose,
+  });
+
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Center(
+          child: Container(
+            width: 38,
+            height: 4.5,
+            margin: const EdgeInsets.only(top: 8, bottom: 10),
+            decoration: BoxDecoration(
+              color: Xm.isDark ? const Color(0xFF33443B) : const Color(0xFFD8E0DA),
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 12, 6),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(title,
+                        style: Xm.text(18, FontWeight.w700, spacing: -0.4)),
+                    if (subtitle != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(subtitle!, style: Xm.captionS),
+                      ),
+                  ],
+                ),
+              ),
+              if (trailing != null) trailing!,
+              if (onClose != null)
+                XmIconButton(
+                  icon: Icons.close_rounded,
+                  tooltip: '关闭',
+                  onTap: onClose,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 分段选择：支出 / 收入 / 转账。滑块是一个元素在移动，不是三块各自变色。
+class XmSegmented<T> extends StatelessWidget {
+  const XmSegmented({
+    super.key,
+    required this.values,
+    required this.labels,
+    required this.value,
+    required this.onChanged,
+    this.height = 38,
+  });
+
+  final List<T> values;
+  final List<String> labels;
+  final T value;
+  final ValueChanged<T> onChanged;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final int index = values.indexOf(value).clamp(0, values.length - 1);
+    return Container(
+      height: height,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Xm.isDark ? Xm.surface2 : const Color(0xFFEDF1EC),
+        borderRadius: BorderRadius.circular(Xm.rSeg),
+      ),
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints c) {
+          final double slot = c.maxWidth / values.length;
+          return Stack(
+            children: <Widget>[
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 260),
+                curve: XmEase.e2,
+                left: slot * index,
+                top: 0,
+                width: slot,
+                height: c.maxHeight,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Xm.surface,
+                    borderRadius: BorderRadius.circular(Xm.rSegItem),
+                    boxShadow: Xm.cardShadow,
+                  ),
+                ),
+              ),
+              Row(
+                children: <Widget>[
+                  for (int i = 0; i < values.length; i++)
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onChanged(values[i]),
+                        child: Center(
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 200),
+                            style: Xm.text(
+                              14,
+                              i == index ? FontWeight.w700 : FontWeight.w500,
+                              color: i == index ? Xm.ink : Xm.ink3,
+                            ),
+                            child: Text(labels[i]),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// 可选标签（分类、账户、状态都用同一个）。选中是品牌绿实心。
+class XmChoice extends StatelessWidget {
+  const XmChoice({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.leading,
+    this.dense = false,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final String? leading;
+  final bool dense;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.symmetric(
+          horizontal: dense ? 11 : 14,
+          vertical: dense ? 6 : 8.5,
+        ),
+        decoration: BoxDecoration(
+          color: selected ? Xm.brand : Xm.surface,
+          borderRadius: BorderRadius.circular(dense ? 9 : 12),
+          border: Border.all(
+            color: selected ? Colors.transparent : Xm.line,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          leading == null ? label : '$leading $label',
+          style: Xm.text(
+            dense ? 12.5 : 13.5,
+            selected ? FontWeight.w600 : FontWeight.w500,
+            color: selected
+                ? (Xm.isDark ? const Color(0xFF08120D) : Colors.white)
+                : Xm.ink2,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 统一的输入框：到底部面板和二级页里长得一样。
+class XmField extends StatelessWidget {
+  const XmField({
+    super.key,
+    required this.controller,
+    this.label,
+    this.hint,
+    this.maxLength,
+    this.keyboardType,
+    this.helper,
+    this.onChanged,
+    this.textInputAction,
+  });
+
+  final TextEditingController controller;
+  final String? label;
+  final String? hint;
+  final int? maxLength;
+  final TextInputType? keyboardType;
+  final String? helper;
+  final ValueChanged<String>? onChanged;
+  final TextInputAction? textInputAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        if (label != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 2, bottom: 6),
+            child: Text(label!,
+                style: Xm.text(12, FontWeight.w500, color: Xm.ink3)),
+          ),
+        Container(
+          decoration: BoxDecoration(
+            color: Xm.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Xm.line),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: TextField(
+            controller: controller,
+            maxLength: maxLength,
+            keyboardType: keyboardType,
+            onChanged: onChanged,
+            textInputAction: textInputAction,
+            style: Xm.text(14.5, FontWeight.w500, height: 1.3),
+            decoration: InputDecoration(
+              counterText: '',
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: 13),
+              hintText: hint,
+              hintStyle: Xm.text(14, FontWeight.w400, color: Xm.ink3),
+            ),
+          ),
+        ),
+        if (helper != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 2, top: 5),
+            child: Text(helper!,
+                style: Xm.text(11.5, FontWeight.w400, color: Xm.ink3)),
+          ),
+      ],
+    );
+  }
+}
+
+/// 首页二级菜单：横向滚动的分类标签。
+class XmScrollTabs extends StatelessWidget {
+  const XmScrollTabs({
+    super.key,
+    required this.items,
+    required this.index,
+    required this.onTap,
+  });
+
+  final List<String> items;
+  final int index;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: items.length,
+        separatorBuilder: (BuildContext _, int __) => const SizedBox(width: 8),
+        itemBuilder: (BuildContext context, int i) {
+          final bool selected = i == index;
+          return Center(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onTap(i),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: selected ? Xm.ink : Xm.surface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: selected ? Colors.transparent : Xm.line,
+                  ),
+                ),
+                child: Text(
+                  items[i],
+                  style: Xm.text(
+                    13,
+                    selected ? FontWeight.w600 : FontWeight.w500,
+                    color: selected ? Xm.bg : Xm.ink2,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// 列表行里的情绪 / 状态小标记。
+class XmMoodBadge extends StatelessWidget {
+  const XmMoodBadge(this.emoji, {super.key, this.label});
+
+  final String emoji;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+          horizontal: label == null ? 5 : 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: Xm.isDark ? Xm.surface2 : const Color(0xFFF1F4EF),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Text(
+        label == null ? emoji : '$emoji $label',
+        style: Xm.text(11, FontWeight.w500, color: Xm.ink3, height: 1.3),
+      ),
+    );
+  }
+}
+
+
 /// 左滑露出「删除」按钮（不是直接滑走，避免误删）。
 ///
 /// 点删除后由调用方负责真正的删除与撤销提示；这里只负责收起。

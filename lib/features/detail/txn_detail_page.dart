@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme.dart';
-
 import '../../core/dates.dart';
 import '../../core/money.dart';
+import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
 import '../../state/data_bus.dart';
+import '../../ui/components.dart';
+import '../../ui/motion.dart';
 import '../record/record_page.dart';
 
 class TxnDetailPage extends StatefulWidget {
@@ -43,7 +44,8 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
   Txn get _t => widget.txn;
 
   String get _categoryText {
-    final TxnCategory? c = _t.categoryId == null ? null : _categories[_t.categoryId];
+    final TxnCategory? c =
+        _t.categoryId == null ? null : _categories[_t.categoryId];
     if (c == null) return '未分类';
     if (c.parentId == null) return c.name;
     final TxnCategory? p = _categories[c.parentId];
@@ -68,11 +70,9 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
   String _two(int v) => v.toString().padLeft(2, '0');
 
   Future<void> _edit() async {
-    final bool? ok = await showModalBottomSheet<bool>(
+    final bool? ok = await showXmExpandSheet<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: const Color(0x6B0A120E),
+      heightFactor: RecordPage.heightFactor,
       builder: (BuildContext _) => RecordPage(repo: widget.repo, editing: _t),
     );
     if (ok == true) {
@@ -86,7 +86,7 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
         title: const Text('删除这条记录'),
-        content: const Text('删除后可以在首页长按撤销（5 秒内）。'),
+        content: const Text('删除后在首页可以点「撤销」找回（3 秒内）。'),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -110,83 +110,107 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
     final bool isTransfer = _t.isTransfer;
     final Color amountColor = isTransfer
         ? Xm.ink
-        : (_t.isExpense ? Xm.ink : const Color(0xFF2E7D32));
+        : (_t.isExpense ? Xm.ink : Xm.income);
     final String sign = isTransfer ? '' : (_t.isExpense ? '-' : '+');
+    final XmMood mood = _t.moodEnum;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('账单详情'),
-        actions: <Widget>[
-          IconButton(
-            tooltip: '编辑',
-            onPressed: _edit,
-            icon: const Icon(Icons.edit_outlined),
-          ),
-          IconButton(
-            tooltip: '删除',
-            onPressed: _delete,
-            icon: const Icon(Icons.delete_outline),
-          ),
-        ],
-      ),
+    return XmPageScaffold(
+      title: '账单详情',
+      subtitle: _kindText,
+      actions: <Widget>[
+        XmIconButton(icon: Icons.edit_outlined, tooltip: '编辑', onTap: _edit),
+        const SizedBox(width: 4),
+        XmIconButton(
+            icon: Icons.delete_outline_rounded, tooltip: '删除', onTap: _delete),
+        const SizedBox(width: 4),
+      ],
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
         children: <Widget>[
+          // 金额区：一块浅色面，不抢第二张主色卡的戏
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 24),
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
             decoration: BoxDecoration(
               color: Xm.surface,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Xm.line),
             ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(_kindText,
-                    style:
-                        TextStyle(fontSize: 12, color: Xm.ink3)),
-                const SizedBox(height: 10),
                 Text(
-                  '$sign¥${formatCents(_t.amount)}',
-                  style: TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w600,
-                      color: amountColor),
+                    isTransfer
+                        ? '转账金额'
+                        : (_t.isExpense ? '支出金额' : '收入金额'),
+                    style: Xm.caption),
+                const SizedBox(height: 8),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: XmAmount(
+                    text: '${formatCents(_t.amount)}',
+                    style: Xm.text(34, FontWeight.w700,
+                        spacing: -1.2, height: 1, tabular: true, color: amountColor),
+                    currencyScale: 0.56,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    _pill('$sign${_kindText}'),
+                    _pill(_categoryText),
+                    if (mood.isSet) _pill('${mood.emoji} ${mood.label}'),
+                    if ((_t.workState ?? '').isNotEmpty)
+                      _pill('⏱ ${_t.workState}'),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           _card(<Widget>[
-            _row('分类', isTransfer ? '—' : _categoryText),
-            _row('账户',
-                isTransfer ? _accountText : _accountText),
+            _row('账户', _accountText),
             if (isTransfer) _row('转入账户', _toAccountText),
             _row('时间', _fullTime(_t.occurredAt)),
-            _row('商户', _t.merchant ?? '—'),
-            _row('订单号', _t.externalId ?? '—', selectable: true),
             _row('备注', (_t.note ?? '').isEmpty ? '—' : _t.note!),
+            if (!isTransfer) _row('商户', _t.merchant ?? '—'),
+          ]),
+          const SizedBox(height: 14),
+          _card(<Widget>[
             if (!isTransfer)
               _switchRow('计入预算', _inBudget, (bool v) => _setInBudget(v)),
-          ]),
-          const SizedBox(height: 16),
-          _card(<Widget>[
             _row('来源', _t.sourceLabel),
             _row(
               '创建时间',
               _t.createdAtMs == 0
                   ? '—'
-                  : _fullTime(DateTime.fromMillisecondsSinceEpoch(
-                      _t.createdAtMs)),
+                  : _fullTime(
+                      DateTime.fromMillisecondsSinceEpoch(_t.createdAtMs)),
             ),
             _row(
               '最后修改',
               _t.updatedAtMs == 0
                   ? '—'
-                  : _fullTime(DateTime.fromMillisecondsSinceEpoch(
-                      _t.updatedAtMs)),
+                  : _fullTime(
+                      DateTime.fromMillisecondsSinceEpoch(_t.updatedAtMs)),
             ),
           ]),
         ],
       ),
+    );
+  }
+
+  Widget _pill(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Xm.isDark ? Xm.surface2 : const Color(0xFFF1F4EF),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Text(text,
+          style: Xm.text(12, FontWeight.w500, color: Xm.ink2)),
     );
   }
 
@@ -204,12 +228,11 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
         children: <Widget>[
           SizedBox(
             width: 76,
-            child: Text(label,
-                style: TextStyle(fontSize: 13, color: Xm.ink3)),
+            child: Text(label, style: Xm.text(13, FontWeight.w500, color: Xm.ink3)),
           ),
           Expanded(
             child: Text('关掉后不计入预算已用',
-                style: TextStyle(fontSize: 12, color: Xm.ink3)),
+                style: Xm.text(12, FontWeight.w400, color: Xm.ink3)),
           ),
           Switch(value: value, onChanged: onChanged),
         ],
@@ -219,16 +242,17 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
 
   Widget _card(List<Widget> children) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
         color: Xm.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Xm.line),
       ),
       child: Column(children: children),
     );
   }
 
-  Widget _row(String label, String value, {bool selectable = false}) {
+  Widget _row(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 11),
       child: Row(
@@ -237,14 +261,11 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
           SizedBox(
             width: 76,
             child: Text(label,
-                style: TextStyle(fontSize: 13, color: Xm.ink3)),
+                style: Xm.text(13, FontWeight.w500, color: Xm.ink3)),
           ),
           Expanded(
-            child: selectable
-                ? SelectableText(value,
-                    style: const TextStyle(fontSize: 14, height: 1.4))
-                : Text(value,
-                    style: const TextStyle(fontSize: 14, height: 1.4)),
+            child: Text(value,
+                style: Xm.text(14, FontWeight.w500, height: 1.4, tabular: true)),
           ),
         ],
       ),

@@ -6,6 +6,7 @@ import '../../data/models.dart';
 import '../../data/repo.dart';
 import '../../state/data_bus.dart';
 import '../../ui/components.dart';
+import '../../ui/motion.dart';
 import '../account/account_detail_page.dart';
 
 class AssetsPage extends StatefulWidget {
@@ -22,6 +23,9 @@ class _AssetsPageState extends State<AssetsPage> {
   Map<int, int> _deltas = const <int, int>{};
   bool _loading = true;
 
+  final Map<int, GlobalKey> _rowKeys = <int, GlobalKey>{};
+  final GlobalKey _addKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -35,9 +39,7 @@ class _AssetsPageState extends State<AssetsPage> {
     super.dispose();
   }
 
-  void _reload() {
-    _load();
-  }
+  void _reload() => _load();
 
   Future<void> _load() async {
     final List<Account> accounts = await widget.repo.accounts();
@@ -52,9 +54,14 @@ class _AssetsPageState extends State<AssetsPage> {
 
   int _balance(Account a) => a.initialBalance + (_deltas[a.id] ?? 0);
 
+  /// 账户详情从被点的那一行放大出来；新增账户从右上角的 ＋ 放大出来。
   Future<void> _openAccount(Account? account) async {
+    final Rect? from = account == null
+        ? xmGlobalRect(_addKey)
+        : xmGlobalRect(_rowKeys[account.id]);
     final bool? changed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
+      XmExpandRoute<bool>(
+        from: from,
         builder: (BuildContext _) =>
             AccountDetailPage(repo: widget.repo, account: account),
       ),
@@ -84,15 +91,20 @@ class _AssetsPageState extends State<AssetsPage> {
     }
 
     return Scaffold(
+      backgroundColor: Xm.bg,
       appBar: AppBar(
         title: const Text('资产'),
         actions: <Widget>[
-          IconButton(
-            tooltip: '新增账户',
-            onPressed: () => _openAccount(null),
-            icon: const Icon(Icons.add_rounded, size: 22),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: XmIconButton(
+              key: _addKey,
+              icon: Icons.add_rounded,
+              tooltip: '新增账户',
+              filled: true,
+              onTap: () => _openAccount(null),
+            ),
           ),
-          const SizedBox(width: 8),
         ],
       ),
       body: _loading
@@ -103,7 +115,7 @@ class _AssetsPageState extends State<AssetsPage> {
                 padding: EdgeInsets.zero,
                 children: <Widget>[
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+                    padding: const EdgeInsets.fromLTRB(16, 2, 16, 18),
                     child: _netCard(net, totalAsset, totalLiability),
                   ),
                   XmSectionTitle('资产', subtitle: '${assets.length} 个账户'),
@@ -118,10 +130,10 @@ class _AssetsPageState extends State<AssetsPage> {
                   else
                     _accountCard(liabilities),
                   Padding(
-                    padding: EdgeInsets.fromLTRB(22, 18, 22, 96),
+                    padding: const EdgeInsets.fromLTRB(22, 18, 22, 96),
                     child: Text(
                       '余额 = 期初余额 + 收入 − 支出；负债记为负数，还款会减少欠款',
-                      style: TextStyle(fontSize: 11, color: Xm.ink3),
+                      style: Xm.text(11, FontWeight.w400, color: Xm.ink3),
                     ),
                   ),
                 ],
@@ -146,7 +158,7 @@ class _AssetsPageState extends State<AssetsPage> {
             ),
           ),
           const SizedBox(height: 10),
-          // 36dp 金额必须给足高度，否则会被卡片裁切（§7.2 坑 1）
+          // 36dp 金额必须给足高度，否则会被卡片裁切
           SizedBox(
             height: 40,
             child: Align(
@@ -201,7 +213,7 @@ class _AssetsPageState extends State<AssetsPage> {
   Widget _emptyHint(String text) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 0, 22, 6),
-      child: Text(text, style: TextStyle(fontSize: 12, color: Xm.ink3)),
+      child: Text(text, style: Xm.text(12, FontWeight.w400, color: Xm.ink3)),
     );
   }
 
@@ -215,6 +227,7 @@ class _AssetsPageState extends State<AssetsPage> {
     }
     return XmCard(
       margin: const EdgeInsets.symmetric(horizontal: 16),
+      radius: 18,
       child: Column(children: rows),
     );
   }
@@ -263,14 +276,14 @@ class _AssetsPageState extends State<AssetsPage> {
   }
 
   Widget _row(Account a, {bool first = false}) {
+    final GlobalKey key = _rowKeys.putIfAbsent(a.id, () => GlobalKey());
     final int balance = _balance(a);
     final int shown = a.isLiability ? -balance : balance;
-    final String sub = <String>[
-      Account.typeLabel(a.type),
-      if (!a.includeInTotal) '不计入总资产',
-    ].join(' · ');
+    final String typeLabel = Account.typeLabel(a.type);
+    final String? note = (a.note ?? '').trim().isEmpty ? null : a.note!.trim();
 
     return Material(
+      key: key,
       color: Colors.transparent,
       child: InkWell(
         onTap: () => _openAccount(a),
@@ -278,7 +291,7 @@ class _AssetsPageState extends State<AssetsPage> {
           children: <Widget>[
             if (!first) const XmDivider(indent: 63),
             SizedBox(
-              height: 63,
+              height: 66,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
@@ -287,23 +300,44 @@ class _AssetsPageState extends State<AssetsPage> {
                       a.isLiability
                           ? Icons.credit_card_off_outlined
                           : Icons.account_balance_wallet_outlined,
-                      size: 34,
+                      size: 36,
                       iconSize: 18,
                     ),
-                    const SizedBox(width: 13),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Text(a.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Xm.body),
+                          Row(
+                            children: <Widget>[
+                              Flexible(
+                                child: Text(
+                                  a.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Xm.body,
+                                ),
+                              ),
+                              if (note != null) ...<Widget>[
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    note,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Xm.text(11.5, FontWeight.w400,
+                                        color: Xm.ink3),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                           const SizedBox(height: 2),
-                          Text(sub,
-                              style: TextStyle(
-                                  fontSize: 11.5, color: Xm.ink3)),
+                          Text(
+                            a.includeInTotal ? typeLabel : '$typeLabel · 不计入总资产',
+                            style: Xm.text(11.5, FontWeight.w400, color: Xm.ink3),
+                          ),
                         ],
                       ),
                     ),
@@ -320,10 +354,10 @@ class _AssetsPageState extends State<AssetsPage> {
                         ),
                         if (a.isLiability)
                           Padding(
-                            padding: EdgeInsets.only(top: 2),
+                            padding: const EdgeInsets.only(top: 2),
                             child: Text('待还',
-                                style: TextStyle(
-                                    fontSize: 10.5, color: Xm.ink3)),
+                                style: Xm.text(10.5, FontWeight.w400,
+                                    color: Xm.ink3)),
                           ),
                       ],
                     ),

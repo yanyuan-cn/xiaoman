@@ -1,23 +1,21 @@
 import 'package:flutter/material.dart';
 
-import '../../core/auto_book.dart';
-import '../../core/auto_book_runner.dart';
 import '../../core/dates.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
-import '../../data/import/auto_parse.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
 import '../../state/data_bus.dart';
 import '../../state/ledger.dart';
 import '../../ui/components.dart';
-import '../autobook/autobook_page.dart';
+import '../../ui/motion.dart';
 import '../budget/budget_page.dart';
 import '../detail/txn_detail_page.dart';
 import '../import/import_page.dart';
 import '../record/record_page.dart';
 import '../search/search_page.dart';
 
+/// 首页：概览 + 二级分类菜单 + 当日流水 + 底部记账条。
 class LedgerPage extends StatefulWidget {
   const LedgerPage({super.key, required this.repo});
 
@@ -30,74 +28,20 @@ class LedgerPage extends StatefulWidget {
 class _LedgerPageState extends State<LedgerPage> {
   late final LedgerState _state = LedgerState(widget.repo);
 
+  /// 记账条的矩形——记账面板就是从这里长出来的。
+  final GlobalKey _barKey = GlobalKey();
+
+  /// 每行一个 key，点开时用它算起始矩形。
+  final Map<int, GlobalKey> _rowKeys = <int, GlobalKey>{};
+
+  /// 二级菜单当前选中的分类（null = 全部）。
+  int? _filterCategory;
+
   @override
   void initState() {
     super.initState();
     DataBus.instance.addListener(_onDataChanged);
-    _runAutoBills();
-    _checkAutoBills();
-  }
-
-  /// 处理自动记账攒下的账单：
-  /// 1. 悬浮窗里点过「记下」的，直接入账不用再问；
-  /// 2. 其余待确认的，提示一句。
-  Future<void> _checkAutoBills() async {
-    final int added = await AutoBookRunner.flush(widget.repo);
-    if (added > 0 && mounted) {
-      await _state.load();
-      DataBus.instance.bump();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已自动记 $added 笔')),
-      );
-    }
-
-    final List<AutoBill> bills = await AutoBook.pendingBills();
-    if (!mounted || bills.isEmpty) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('发现 ${bills.length} 笔待确认账单'),
-        duration: const Duration(seconds: 8),
-        action: SnackBarAction(
-          label: '去处理',
-          onPressed: () async {
-            await Navigator.of(context).push<void>(
-              MaterialPageRoute<void>(
-                builder: (BuildContext _) => AutoBookPage(repo: widget.repo),
-              ),
-            );
-            DataBus.instance.bump();
-          },
-        ),
-      ),
-    );
-  }
-
-  Future<void> _runAutoBills() async {
-    final List<int> ids = await widget.repo.runDueRecurringRules();
-    if (!mounted || ids.isEmpty) return;
-    await _state.load();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('已自动记 ${ids.length} 笔定期账单'),
-        duration: const Duration(seconds: 4),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 96),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        action: SnackBarAction(
-          label: '撤销',
-          onPressed: () async {
-            await widget.repo.undoAutoTxns(ids);
-            if (mounted) await _state.load();
-          },
-        ),
-      ),
-    );
-  }
-
-  void _onDataChanged() {
-    _state.load();
+    _runRecurring();
   }
 
   @override
@@ -107,34 +51,64 @@ class _LedgerPageState extends State<LedgerPage> {
     super.dispose();
   }
 
+  void _onDataChanged() => _state.load();
+
+  /// 定期扣款到点自动生成账单。
+  Future<void> _runRecurring() async {
+    final List<int> ids = await widget.repo.runDueRecurringRules();
+    if (!mounted || ids.isEmpty) return;
+    await _state.load();
+    if (!mounted) return;
+    showUndoSnack(
+      context,
+      message: '已自动记 ${ids.length} 笔定期账单',
+      onUndo: () async {
+        await widget.repo.undoAutoTxns(ids);
+        if (mounted) await _state.load();
+      },
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // 跳转
+  // ------------------------------------------------------------------
+
   Future<void> _openSearch() async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
+      XmExpandRoute<void>(
         builder: (BuildContext _) => SearchPage(repo: widget.repo),
       ),
     );
     if (mounted) await _state.load();
   }
 
-  Future<void> _openRecord() async {
-    final bool? saved = await showModalBottomSheet<bool>(
+  /// 展开记账面板：从记账条的位置长出来，而不是从屏幕底部滑上来。
+  Future<void> _openRecord({String kind = 'expense'}) async {
+    final Rect? from = xmGlobalRect(_barKey);
+    final bool? saved = await showXmExpandSheet<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: const Color(0x6B0A120E),
-      builder: (BuildContext _) => RecordPage(repo: widget.repo),
+      from: from,
+      heightFactor: RecordPage.heightFactor,
+      builder: (BuildContext _) => RecordPage(
+        repo: widget.repo,
+        initialKind: kind,
+        initialCategoryId: _filterCategory,
+      ),
     );
     if (saved == true) DataBus.instance.bump();
   }
 
   Future<void> _openDetail(Txn t) async {
-    await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (BuildContext _) =>
-            TxnDetailPage(repo: widget.repo, txn: t),
+    final Rect? from = xmGlobalRect(_rowKeys[t.id]);
+    // 只有真的改了（编辑 / 删除）才整表重查，单纯看一眼不动数据，
+    // 免得返回动画还没结束就丢一次全量查询进来。
+    final bool? changed = await Navigator.of(context).push<bool>(
+      XmExpandRoute<bool>(
+        from: from,
+        builder: (BuildContext _) => TxnDetailPage(repo: widget.repo, txn: t),
       ),
     );
-    if (mounted) DataBus.instance.bump();
+    if (changed == true && mounted) DataBus.instance.bump();
   }
 
   Future<void> _onDelete(Txn t) async {
@@ -146,7 +120,7 @@ class _LedgerPageState extends State<LedgerPage> {
 
   Future<void> _openImport() async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
+      XmExpandRoute<void>(
         builder: (BuildContext _) => ImportPage(repo: widget.repo),
       ),
     );
@@ -175,19 +149,71 @@ class _LedgerPageState extends State<LedgerPage> {
     final int n = await widget.repo.undoLastImport();
     await _state.load();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(n == 0 ? '没有可撤销的导入' : '已撤销 $n 笔')),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(n == 0 ? '没有可撤销的导入' : '已撤销 $n 笔')));
   }
 
   Future<void> _openBudget() async {
     await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
+      XmExpandRoute<bool>(
         builder: (BuildContext _) => BudgetPage(repo: widget.repo),
       ),
     );
     if (mounted) await _state.load();
   }
+
+  // ------------------------------------------------------------------
+  // 计算
+  // ------------------------------------------------------------------
+
+  /// 当前筛选下的流水。
+  List<Txn> get _visible {
+    final int? cat = _filterCategory;
+    if (cat == null) return _state.txns;
+    return <Txn>[
+      for (final Txn t in _state.txns)
+        if (t.categoryId == cat ||
+            (_state.categoryById[t.categoryId]?.parentId == cat))
+          t,
+    ];
+  }
+
+  /// 二级菜单：全部 + 本月真正用到的支出一级分类（最多 8 个）。
+  List<MapEntry<int?, String>> get _menu {
+    final Map<int, int> counts = <int, int>{};
+    for (final Txn t in _state.txns) {
+      if (t.isTransfer) continue;
+      final TxnCategory? c =
+          t.categoryId == null ? null : _state.categoryById[t.categoryId];
+      final int id = c?.parentId ?? c?.id ?? 0;
+      if (id == 0) continue;
+      counts[id] = (counts[id] ?? 0) + t.amount;
+    }
+    final List<int> ids = counts.keys.toList()
+      ..sort((int a, int b) => counts[b]!.compareTo(counts[a]!));
+    return <MapEntry<int?, String>>[
+      const MapEntry<int?, String>(null, '全部'),
+      for (final int id in ids.take(8))
+        MapEntry<int?, String>(id, _state.categoryById[id]?.name ?? '其他'),
+    ];
+  }
+
+  int get _todayExpense {
+    final DateTime now = DateTime.now();
+    int sum = 0;
+    for (final Txn t in _state.txns) {
+      if (!t.isExpense) continue;
+      final DateTime d = t.occurredAt;
+      if (d.year == now.year && d.month == now.month && d.day == now.day) {
+        sum += t.amount;
+      }
+    }
+    return sum;
+  }
+
+  // ------------------------------------------------------------------
+  // 界面
+  // ------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -195,21 +221,23 @@ class _LedgerPageState extends State<LedgerPage> {
       animation: _state,
       builder: (BuildContext context, Widget? child) {
         return Scaffold(
+          backgroundColor: Xm.bg,
           appBar: AppBar(
-            // 首页标题是品牌名，不是"首页"（§4.1）
             title: const Text('小满'),
             actions: <Widget>[
-              _iconButton(Icons.search_rounded, '搜索', _openSearch),
-              const SizedBox(width: 2),
-              _iconButton(Icons.refresh_rounded, '刷新',
-                  _state.loading ? null : () => _state.load()),
-              const SizedBox(width: 6),
+              XmIconButton(
+                icon: Icons.search_rounded,
+                tooltip: '搜索',
+                onTap: _openSearch,
+              ),
+              const SizedBox(width: 4),
               PopupMenuButton<String>(
                 tooltip: '更多',
-                icon: const Icon(Icons.more_horiz_rounded),
+                icon: const Icon(Icons.more_horiz_rounded, size: 20),
                 onSelected: (String value) {
                   if (value == 'import') _openImport();
                   if (value == 'undo') _undoImport();
+                  if (value == 'reload') _state.load();
                 },
                 itemBuilder: (BuildContext ctx) =>
                     const <PopupMenuEntry<String>>[
@@ -220,6 +248,10 @@ class _LedgerPageState extends State<LedgerPage> {
                   PopupMenuItem<String>(
                     value: 'undo',
                     child: Text('撤销上次导入'),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'reload',
+                    child: Text('刷新数据'),
                   ),
                 ],
               ),
@@ -237,39 +269,20 @@ class _LedgerPageState extends State<LedgerPage> {
     );
   }
 
-  Widget _iconButton(IconData icon, String tooltip, VoidCallback? onTap) {
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: onTap,
-      icon: Icon(icon, size: 20),
-      style: IconButton.styleFrom(
-        foregroundColor: Xm.ink2,
-        minimumSize: const Size(34, 34),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
   Widget _periodBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 2, 20, 14),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
       child: Row(
         children: <Widget>[
           _circleButton(Icons.chevron_left_rounded, () => _state.shiftMonth(-1)),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 2),
             child: Text(
               fmtMonth(_state.month),
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.1,
-                color: Xm.ink,
-              ),
+              style: Xm.text(17, FontWeight.w700, spacing: -0.2),
             ),
           ),
-          _circleButton(
-              Icons.chevron_right_rounded, () => _state.shiftMonth(1)),
+          _circleButton(Icons.chevron_right_rounded, () => _state.shiftMonth(1)),
           const Spacer(),
           GestureDetector(
             onTap: () => _state.backToThisMonth(),
@@ -301,7 +314,7 @@ class _LedgerPageState extends State<LedgerPage> {
           const Center(child: CircularProgressIndicator())
         else
           _list(),
-        Positioned(right: 18, bottom: 94, child: _fab()),
+        Positioned(left: 0, right: 0, bottom: 94, child: _recordBar()),
       ],
     );
   }
@@ -309,44 +322,56 @@ class _LedgerPageState extends State<LedgerPage> {
   Widget _list() {
     final Map<int, Account> acc = _state.accountById;
     final Map<int, TxnCategory> cat = _state.categoryById;
+    final List<Txn> visible = _visible;
 
     final List<Widget> children = <Widget>[
-      Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: _hero()),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: _hero(),
+      ),
+      const SizedBox(height: 16),
+      _menuRow(),
+      const SizedBox(height: 6),
     ];
 
-    if (_state.txns.isEmpty) {
+    if (visible.isEmpty) {
       children.add(_empty());
     } else {
       String? lastKey;
       List<Widget> rows = <Widget>[];
       int i = 0;
 
-      for (final Txn t in _state.txns) {
-        final DateTime d = t.occurredAt;
-        final String key = fmtDayKey(d);
+      for (final Txn t in visible) {
+        final String key = fmtDayKey(t.occurredAt);
         if (key != lastKey) {
           if (rows.isNotEmpty) {
             children.add(_dayCard(rows));
             rows = <Widget>[];
           }
           lastKey = key;
-          children.add(_dayHeader(d, _dayExpense(d)));
+          children.add(_dayHeader(t.occurredAt, _dayExpense(t.occurredAt)));
         }
-        rows.add(XmEntrance(
-          index: i++,
-          step: 55,
-          base: 80,
-          offsetY: 10,
-          child: XmSwipeDelete(
-            onDelete: () => _onDelete(t),
-            child: _row(t, acc, cat, first: rows.isEmpty),
-          ),
-        ));
+        final Widget row = XmSwipeDelete(
+          onDelete: () => _onDelete(t),
+          child: _row(t, acc, cat, first: rows.isEmpty),
+        );
+        // 只有前 6 条做入场动画：列表一长，几十个 Timer + AnimationController
+        // 同时启动就是切页掉帧的直接原因。
+        rows.add(i < 6
+            ? XmEntrance(
+                index: i,
+                step: 40,
+                base: 40,
+                offsetY: 8,
+                child: row,
+              )
+            : row);
+        i++;
       }
       if (rows.isNotEmpty) children.add(_dayCard(rows));
     }
 
-    children.add(const SizedBox(height: 96));
+    children.add(const SizedBox(height: 170));
 
     return ListView(
       padding: EdgeInsets.zero,
@@ -354,17 +379,29 @@ class _LedgerPageState extends State<LedgerPage> {
     );
   }
 
+  Widget _menuRow() {
+    final List<MapEntry<int?, String>> menu = _menu;
+    int index = menu.indexWhere(
+        (MapEntry<int?, String> e) => e.key == _filterCategory);
+    if (index < 0) index = 0;
+    return XmScrollTabs(
+      items: <String>[for (final MapEntry<int?, String> e in menu) e.value],
+      index: index,
+      onTap: (int i) => setState(() => _filterCategory = menu[i].key),
+    );
+  }
+
   Widget _dayCard(List<Widget> rows) => XmCard(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+        radius: 18,
         child: Column(children: rows),
       );
 
   int _dayExpense(DateTime day) {
     int sum = 0;
-    for (final Txn t in _state.txns) {
-      if (t.isExpense &&
-          !t.isTransfer &&
-          fmtDayKey(t.occurredAt) == fmtDayKey(day)) {
+    final String key = fmtDayKey(day);
+    for (final Txn t in _visible) {
+      if (t.isExpense && t.categoryId != null && fmtDayKey(t.occurredAt) == key) {
         sum += t.amount;
       }
     }
@@ -376,7 +413,7 @@ class _LedgerPageState extends State<LedgerPage> {
     final MonthSummary s = _state.summary;
 
     return XmHeroCard(
-      margin: const EdgeInsets.only(bottom: 18),
+      margin: const EdgeInsets.only(top: 4),
       child: Column(
         children: <Widget>[
           Row(
@@ -470,7 +507,8 @@ class _LedgerPageState extends State<LedgerPage> {
               const SizedBox(width: 10),
               const Spacer(),
               Text(
-                overdue ? '超支 ¥${formatCents(-remaining)}'
+                overdue
+                    ? '超支 ¥${formatCents(-remaining)}'
                     : '剩余 ¥${formatCents(remaining)}',
                 style: Xm.amountXS.copyWith(
                   color: overdue ? const Color(0xFFFF9B90) : Xm.goldOnDark,
@@ -515,19 +553,20 @@ class _LedgerPageState extends State<LedgerPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(label,
-            style: Xm.text(11, FontWeight.w400, color: Xm.onDarkNote)),
+        Text(label, style: Xm.text(11, FontWeight.w400, color: Xm.onDarkNote)),
         const SizedBox(height: 3),
         Row(
           children: <Widget>[
-            Text('余',
-                style: Xm.text(11, FontWeight.w500, color: Xm.onDarkNote)),
+            Text('余', style: Xm.text(11, FontWeight.w500, color: Xm.onDarkNote)),
             const SizedBox(width: 3),
             Text(
               '¥${formatCents(remain.abs())}',
-              style: Xm.text(13, FontWeight.w600,
-                  color: overdue ? const Color(0xFFFF9B90) : Xm.onDarkStrong,
-                  tabular: true),
+              style: Xm.text(
+                13,
+                FontWeight.w600,
+                color: overdue ? const Color(0xFFFF9B90) : Xm.onDarkStrong,
+                tabular: true,
+              ),
             ),
           ],
         ),
@@ -537,13 +576,10 @@ class _LedgerPageState extends State<LedgerPage> {
 
   Widget _dayHeader(DateTime d, int expense) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 14, 22, 8),
+      padding: const EdgeInsets.fromLTRB(22, 12, 22, 8),
       child: Row(
         children: <Widget>[
-          Text(
-            '${fmtMonthDay(d)} · ${fmtWeekday(d)}',
-            style: Xm.caption,
-          ),
+          Text('${fmtMonthDay(d)} · ${fmtWeekday(d)}', style: Xm.caption),
           const Spacer(),
           if (expense > 0)
             Text('支出 ¥${formatCents(expense)}', style: Xm.captionS),
@@ -554,15 +590,17 @@ class _LedgerPageState extends State<LedgerPage> {
 
   Widget _row(Txn t, Map<int, Account> acc, Map<int, TxnCategory> cat,
       {bool first = false}) {
+    final GlobalKey key = _rowKeys.putIfAbsent(t.id, () => GlobalKey());
     final TxnCategory? c = t.categoryId == null ? null : cat[t.categoryId];
     final Account? a = acc[t.accountId];
     final Account? to = t.toAccountId == null ? null : acc[t.toAccountId];
+    final XmMood mood = t.moodEnum;
 
     String title;
     String sub;
     String amount;
-    Color amountColor;
     String glyph;
+    Color amountColor;
 
     if (t.isTransfer) {
       title = '转账';
@@ -586,31 +624,56 @@ class _LedgerPageState extends State<LedgerPage> {
       glyph = catName;
     }
 
+    final bool hasState = (t.workState ?? '').isNotEmpty;
+
     return Material(
+      key: key,
       color: Colors.transparent,
       child: InkWell(
         onTap: () => _openDetail(t),
         child: Column(
           children: <Widget>[
-            if (!first) const XmDivider(),
+            if (!first) const XmDivider(indent: 68),
             SizedBox(
-              height: 66,
+              height: 68,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: <Widget>[
-                    XmIconBlock.char(glyph),
+                    XmIconBlock.char(glyph, size: 40),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Xm.body,
+                          Row(
+                            children: <Widget>[
+                              Flexible(
+                                child: Text(
+                                  title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Xm.body,
+                                ),
+                              ),
+                              if (hasState) ...<Widget>[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: Xm.brandLL,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    t.workState!,
+                                    style: Xm.text(10.5, FontWeight.w600,
+                                        color: Xm.brand),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                           const SizedBox(height: 3),
                           Text(
@@ -622,10 +685,24 @@ class _LedgerPageState extends State<LedgerPage> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Text(
-                      amount,
-                      style: Xm.bodyM.copyWith(color: amountColor),
+                    const SizedBox(width: 10),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: <Widget>[
+                        Text(
+                          amount,
+                          style: Xm.bodyM.copyWith(color: amountColor),
+                        ),
+                        if (mood.isSet)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              mood.emoji,
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                 ),
@@ -637,35 +714,63 @@ class _LedgerPageState extends State<LedgerPage> {
     );
   }
 
-  Widget _fab() {
-    return Semantics(
-      button: true,
-      label: '记一笔',
-      child: GestureDetector(
-        onTap: _openRecord,
-        child: Container(
-          height: 52,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            gradient: Xm.buttonGradient,
-            borderRadius: BorderRadius.circular(Xm.rHero),
-            boxShadow: Xm.fabShadow,
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Icon(Icons.add_rounded, size: 20, color: Colors.white),
-              SizedBox(width: 7),
-              Text(
-                '记一笔',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.4,
-                  color: Colors.white,
+  /// 记账条：整条可点，展开成记账面板。
+  Widget _recordBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Semantics(
+        button: true,
+        label: '记一笔',
+        child: GestureDetector(
+          key: _barKey,
+          onTap: _openRecord,
+          child: Container(
+            height: 58,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: Xm.surface,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: Xm.fabShadow,
+            ),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    gradient: Xm.buttonGradient,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: const Icon(Icons.add_rounded,
+                      size: 22, color: Colors.white),
                 ),
-              ),
-            ],
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text('记一笔',
+                          style: Xm.text(15, FontWeight.w700, spacing: -0.2)),
+                      const SizedBox(height: 2),
+                      Text(
+                        _todayExpense > 0
+                            ? '今日支出 ¥${formatCents(_todayExpense)}'
+                            : '今天还没有支出',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Xm.captionS,
+                      ),
+                    ],
+                  ),
+                ),
+                XmIconButton(
+                  icon: Icons.keyboard_arrow_up_rounded,
+                  tooltip: '展开记账',
+                  onTap: _openRecord,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -674,7 +779,7 @@ class _LedgerPageState extends State<LedgerPage> {
 
   Widget _empty() {
     return Padding(
-      padding: const EdgeInsets.only(top: 60),
+      padding: const EdgeInsets.only(top: 54),
       child: Column(
         children: <Widget>[
           Container(
@@ -688,9 +793,12 @@ class _LedgerPageState extends State<LedgerPage> {
                 size: 28, color: Xm.brand),
           ),
           const SizedBox(height: 14),
-          Text('这个月还没有记录', style: TextStyle(fontSize: 14, color: Xm.ink2)),
+          Text(
+            _filterCategory == null ? '这个月还没有记录' : '这个分类下还没有记录',
+            style: TextStyle(fontSize: 14, color: Xm.ink2),
+          ),
           const SizedBox(height: 4),
-          Text('点右下角「记一笔」开始',
+          Text('点下面的「记一笔」开始',
               style: TextStyle(fontSize: 12, color: Xm.ink3)),
         ],
       ),

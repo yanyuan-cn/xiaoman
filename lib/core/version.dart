@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '1.7.2';
-const int kAppBuild = 23;
+const String kAppVersion = '2.0.0';
+const int kAppBuild = 24;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,16 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+2.0.0
+· 大焕新：首页加二级分类菜单，点一下只看这一类
+· 记账改成「记账条」：从底部长出来，收起来只有一条
+· 每笔账可以标心情（满意 / 后悔）和当时的状态（工作 / 加班 / 休息…）
+· 资产账户可以写备注，列表里直接显示在名字后面
+· 点流水、点账户，详情从那一行本身放大出来，返回时缩回去
+· 记账面板、账单详情、账户详情统一成一套头部、输入框和标签
+· 移除自动记账（无障碍 / 通知 / 短信），不再申请相关权限
+· 动效优化：去掉底部毛玻璃、收敛入场动画，快速切页不再掉帧
+
 1.7.2
 · 修复底部导航切换卡顿与残影：切页只动画新页面，旧页立即隐藏
 · 修复「自动记账」页面打不开（一直转圈）

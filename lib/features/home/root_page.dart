@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
@@ -142,61 +140,60 @@ class _TabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final double bottomInset = MediaQuery.paddingOf(context).bottom;
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-        child: Container(
-          padding: EdgeInsets.only(bottom: bottomInset),
-          decoration: BoxDecoration(
-            color: Xm.isDark
-                ? const Color(0xDB121A16)
-                : const Color(0xDBFAFBF9), // rgba(250,251,249,.86)
-            border: Border(
-              top: BorderSide(
-                color: Xm.isDark ? const Color(0x14FFFFFF) : const Color(0x0F12211A),
-                width: 1,
-              ),
+    // 这里原本是 BackdropFilter 毛玻璃，是中低端机上切页掉帧的主要来源：
+    // 每一帧都要把整条栏后面的内容重新模糊一遍。改成不透明底色 + 细边，
+    // 视觉差别很小，但少了一整层离屏渲染。
+    return RepaintBoundary(
+      child: Container(
+        padding: EdgeInsets.only(bottom: bottomInset),
+        decoration: BoxDecoration(
+          color: Xm.isDark ? const Color(0xF2121A16) : const Color(0xF2FAFBF9),
+          border: Border(
+            top: BorderSide(
+              color:
+                  Xm.isDark ? const Color(0x14FFFFFF) : const Color(0x0F12211A),
+              width: 1,
             ),
           ),
-          child: SizedBox(
-            height: barH,
-            child: LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints c) {
-                final double slot = c.maxWidth / tabs.length;
-                const double pillW = 52;
-                return Stack(
-                  children: <Widget>[
-                    // 滑块是**一个**元素在四个位置间移动（§6.2 C10）
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 400),
-                      curve: XmEase.e3,
-                      left: slot * index + (slot - pillW) / 2,
-                      top: topPad,
-                      width: pillW,
-                      height: iconBox,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Xm.brandL,
-                          borderRadius: BorderRadius.circular(15),
-                        ),
+        ),
+        child: SizedBox(
+          height: barH,
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints c) {
+              final double slot = c.maxWidth / tabs.length;
+              const double pillW = 52;
+              return Stack(
+                children: <Widget>[
+                  // 滑块是**一个**元素在四个位置间移动（§6.2 C10）
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 360),
+                    curve: XmEase.e2,
+                    left: slot * index + (slot - pillW) / 2,
+                    top: topPad,
+                    width: pillW,
+                    height: iconBox,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Xm.brandL,
+                        borderRadius: BorderRadius.circular(15),
                       ),
                     ),
-                    Row(
-                      children: <Widget>[
-                        for (int i = 0; i < tabs.length; i++)
-                          Expanded(
-                            child: _TabItem(
-                              spec: tabs[i],
-                              selected: i == index,
-                              onTap: () => onTap(i),
-                            ),
+                  ),
+                  Row(
+                    children: <Widget>[
+                      for (int i = 0; i < tabs.length; i++)
+                        Expanded(
+                          child: _TabItem(
+                            spec: tabs[i],
+                            selected: i == index,
+                            onTap: () => onTap(i),
                           ),
-                      ],
-                    ),
-                  ],
-                );
-              },
-            ),
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),

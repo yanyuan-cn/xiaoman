@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme.dart';
-
 import '../../core/money.dart';
+import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
+import '../../ui/components.dart';
 
+/// 账户详情 / 新增账户。
+///
+/// 从资产列表的某一行放大进来（见 [XmExpandRoute]），风格与记账面板一致：
+/// 同一套输入框、同一套标签、同一套开关卡。
 class AccountDetailPage extends StatefulWidget {
   const AccountDetailPage({super.key, required this.repo, this.account});
 
@@ -27,6 +31,7 @@ const Map<String, String> _typeOptions = <String, String>{
 class _AccountDetailPageState extends State<AccountDetailPage> {
   final TextEditingController _name = TextEditingController();
   final TextEditingController _balance = TextEditingController();
+  final TextEditingController _note = TextEditingController();
 
   String _type = 'bank';
   bool _isLiability = false;
@@ -37,7 +42,6 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
   int _delta = 0;
   List<Txn> _txns = const <Txn>[];
   Map<int, TxnCategory> _categories = const <int, TxnCategory>{};
-  Map<int, Account> _accounts = const <int, Account>{};
 
   bool get _isEditing => widget.account != null;
 
@@ -47,6 +51,7 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
     final Account? a = widget.account;
     if (a != null) {
       _name.text = a.name;
+      _note.text = a.note ?? '';
       _type = a.type;
       _isLiability = a.isLiability;
       _includeInTotal = a.includeInTotal;
@@ -58,11 +63,11 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
   void dispose() {
     _name.dispose();
     _balance.dispose();
+    _note.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
-    final List<Account> accounts = await widget.repo.accounts();
     final Map<int, int> deltas = await widget.repo.accountDeltas();
     final List<TxnCategory> cats = await widget.repo.categories();
 
@@ -76,7 +81,7 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
 
     if (!mounted) return;
     setState(() {
-      _accounts = <int, Account>{for (final Account x in accounts) x.id: x};
+      // accounts 里已经带 note，这里只是为了让新增页也知道列表数量
       _categories = <int, TxnCategory>{for (final TxnCategory c in cats) c.id: c};
       _txns = txns;
       _delta = delta;
@@ -117,6 +122,7 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
       return;
     }
 
+    final String note = _note.text.trim();
     setState(() => _saving = true);
     if (_isEditing) {
       await widget.repo.updateAccount(
@@ -126,6 +132,7 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
         initialBalance: entered - _delta,
         isLiability: _isLiability,
         includeInTotal: _includeInTotal,
+        note: note.isEmpty ? null : note,
       );
     } else {
       await widget.repo.addAccount(
@@ -134,6 +141,7 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
         initialBalance: entered,
         isLiability: _isLiability,
         includeInTotal: _includeInTotal,
+        note: note.isEmpty ? null : note,
       );
     }
     if (!mounted) return;
@@ -142,153 +150,202 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? '编辑账户' : '新增账户'),
-        actions: <Widget>[
-          TextButton(
-            onPressed: _saving ? null : _save,
-            child: const Text('保存'),
+    return XmPageScaffold(
+      title: _isEditing ? '编辑账户' : '新增账户',
+      subtitle: _isEditing ? '改动会立即影响净资产' : '填现在实际有多少钱',
+      actions: <Widget>[
+        Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: SizedBox(
+            height: 36,
+            child: FilledButton(
+              onPressed: _saving ? null : _save,
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(11)),
+              ),
+              child: Text(_saving ? '保存中' : '保存'),
+            ),
           ),
-        ],
-      ),
+        ),
+      ],
       body: !_loaded
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
               children: <Widget>[
-                _label('名称'),
-                TextField(
+                XmField(
                   controller: _name,
+                  label: '名称',
+                  hint: '例如：招商银行工资卡',
                   maxLength: 16,
-                  decoration: const InputDecoration(
-                    hintText: '例如：招商银行工资卡',
-                    counterText: '',
-                    isDense: true,
-                    border: OutlineInputBorder(),
+                ),
+                const SizedBox(height: 14),
+                XmField(
+                  controller: _note,
+                  label: '备注',
+                  hint: '例如：每月 15 号发薪（可选）',
+                  maxLength: 24,
+                ),
+                const SizedBox(height: 14),
+                _section(
+                  '类型',
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      for (final MapEntry<String, String> e
+                          in _typeOptions.entries)
+                        XmChoice(
+                          label: e.value,
+                          dense: true,
+                          selected: _type == e.key,
+                          onTap: () => setState(() => _type = e.key),
+                        ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 18),
-                _label('类型'),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: <Widget>[
-                    for (final MapEntry<String, String> e in _typeOptions.entries)
-                      ChoiceChip(
-                        label: Text(e.value),
-                        selected: _type == e.key,
-                        showCheckmark: false,
-                        onSelected: (bool _) => setState(() => _type = e.key),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                _label('当前余额'),
-                TextField(
+                XmField(
                   controller: _balance,
+                  label: '当前余额',
+                  hint: '填这个账户现在实际有多少钱',
+                  helper: '负债请填负数，例如 -45000',
                   keyboardType:
                       const TextInputType.numberWithOptions(signed: true),
-                  decoration: const InputDecoration(
-                    prefixText: '¥ ',
-                    hintText: '填这个账户现在实际有多少钱',
-                    helperText: '负债请填负数，例如 -45000',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
                 Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
                     color: Xm.surface,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Xm.line),
                   ),
                   child: Column(
                     children: <Widget>[
-                      SwitchListTile(
-                        value: _isLiability,
-                        onChanged: (bool v) => setState(() => _isLiability = v),
-                        title: const Text('这是负债账户',
-                            style: TextStyle(fontSize: 14)),
-                        subtitle: Text('比如房贷、车贷、信用卡欠款',
-                            style:
-                                TextStyle(fontSize: 11, color: Xm.ink3)),
+                      _switchRow(
+                        '这是负债账户',
+                        '比如房贷、车贷、信用卡欠款',
+                        _isLiability,
+                        (bool v) => setState(() => _isLiability = v),
                       ),
-                      const Divider(height: 1),
-                      SwitchListTile(
-                        value: _includeInTotal,
-                        onChanged: (bool v) =>
-                            setState(() => _includeInTotal = v),
-                        title: const Text('计入总资产',
-                            style: TextStyle(fontSize: 14)),
-                        subtitle: Text('关掉后这个账户不参与净资产计算',
-                            style:
-                                TextStyle(fontSize: 11, color: Xm.ink3)),
+                      const XmDivider(indent: 0, endIndent: 0),
+                      _switchRow(
+                        '计入总资产',
+                        '关掉后这个账户不参与净资产计算',
+                        _includeInTotal,
+                        (bool v) => setState(() => _includeInTotal = v),
                       ),
                     ],
                   ),
                 ),
                 if (_isEditing) ...<Widget>[
                   const SizedBox(height: 22),
-                  _label('最近流水'),
-                  for (final Txn t in _txns) _txnRow(t),
-                  if (_txns.isEmpty)
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text('还没有流水',
-                          style:
-                              TextStyle(fontSize: 12, color: Xm.ink3)),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 2, bottom: 8),
+                    child: Text('最近流水',
+                        style: Xm.text(12, FontWeight.w500,
+                            spacing: 0.3, color: Xm.ink3)),
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Xm.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Xm.line),
                     ),
+                    child: Column(
+                      children: <Widget>[
+                        for (int i = 0; i < _txns.length; i++) ...<Widget>[
+                          if (i > 0) const XmDivider(indent: 14, endIndent: 14),
+                          _txnRow(_txns[i]),
+                        ],
+                        if (_txns.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            child: Text('还没有流水',
+                                style: Xm.text(12, FontWeight.w400,
+                                    color: Xm.ink3)),
+                          ),
+                      ],
+                    ),
+                  ),
                 ],
               ],
             ),
     );
   }
 
+  Widget _section(String title, Widget child) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.only(left: 2, bottom: 7),
+            child: Text(title,
+                style:
+                    Xm.text(12, FontWeight.w500, spacing: 0.3, color: Xm.ink3)),
+          ),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _switchRow(
+      String title, String subtitle, bool value, ValueChanged<bool> onChanged) {
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(title, style: Xm.text(14, FontWeight.w600)),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 10),
+                child: Text(subtitle,
+                    style: Xm.text(11, FontWeight.w400, color: Xm.ink3)),
+              ),
+            ],
+          ),
+        ),
+        Switch(value: value, onChanged: onChanged),
+      ],
+    );
+  }
+
   Widget _txnRow(Txn t) {
-    final TxnCategory? c = t.categoryId == null ? null : _categories[t.categoryId];
-    final String title = t.isTransfer
-        ? '转账'
-        : (c?.name ?? '未分类');
-    final Account? other = t.isTransfer && t.toAccountId != null
-        ? _accounts[t.toAccountId]
-        : null;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 1),
-      color: Xm.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    final TxnCategory? c =
+        t.categoryId == null ? null : _categories[t.categoryId];
+    final String title = t.isTransfer ? '转账' : (c?.name ?? '未分类');
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
         children: <Widget>[
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(title, style: const TextStyle(fontSize: 13)),
+                Text(title, style: Xm.text(13.5, FontWeight.w500)),
                 const SizedBox(height: 2),
                 Text(
-                  other == null
-                      ? '${t.occurredAt.month}月${t.occurredAt.day}日'
-                      : '${t.occurredAt.month}月${t.occurredAt.day}日 · 转入 ${other.name}',
-                  style:
-                      TextStyle(fontSize: 11, color: Xm.ink3),
+                  '${t.occurredAt.month}月${t.occurredAt.day}日',
+                  style: Xm.text(11, FontWeight.w400, color: Xm.ink3),
                 ),
               ],
             ),
           ),
           Text(
             '${t.isTransfer ? '' : (t.isExpense ? '-' : '+')}¥${formatCents(t.amount)}',
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            style: Xm.text(13.5, FontWeight.w600, tabular: true),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _label(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(text,
-          style: TextStyle(fontSize: 12, color: Xm.ink3)),
     );
   }
 }
