@@ -5,6 +5,7 @@ import 'repo.dart';
 
 /// 备份包含的表。顺序即恢复时的写入顺序，恢复时按倒序清空。
 const List<String> kBackupTables = <String>[
+  'account_types',
   'accounts',
   'categories',
   'txns',
@@ -112,10 +113,12 @@ Map<String, List<Map<String, Object?>>> legacyBackupRows(
   final List<Map<String, Object?>> accounts = <Map<String, Object?>>[];
   int i = 0;
   for (final Map<String, Object?> a in list('accounts')) {
+    final String rawType = (a['type'] as String?) ?? 'cash';
     accounts.add(<String, Object?>{
       'id': a['id'],
       'name': a['name'] ?? '',
-      'type': a['type'] ?? 'cash',
+      // 老备份里 type 是 savings / bank 这种 key，换成新的中文名
+      'type': kLegacyAccountTypes[rawType] ?? rawType,
       'initial_balance': (a['initialBalance'] as num?)?.toInt() ?? 0,
       'is_liability': 0,
       'include_in_total': 1,

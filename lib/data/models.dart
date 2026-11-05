@@ -1,3 +1,5 @@
+import 'db.dart';
+
 class Account {
   const Account({
     required this.id,
@@ -29,22 +31,35 @@ class Account {
         note: m['note'] as String?,
       );
 
+  /// 老版本 `accounts.type` 存的是英文 key，这里兜底转成中文。
+  /// 新数据存的就是名字，直接返回。
   static String typeLabel(String type) {
-    switch (type) {
-      case 'bank':
-        return '银行卡';
-      case 'ewallet':
-        return '电子钱包';
-      case 'deposit':
-        return '定期存款';
-      case 'savings':
-        return '活期存款';
-      case 'cash':
-        return '现金';
-      default:
-        return '其他';
-    }
+    final String? legacy = kLegacyAccountTypes[type];
+    if (legacy != null) return legacy;
+    return type;
   }
+}
+
+/// 账户类型（活期存款 / 银行卡 / 自定义…）。
+class AccountType {
+  const AccountType({
+    required this.id,
+    required this.name,
+    this.sort = 0,
+    this.archived = false,
+  });
+
+  final int id;
+  final String name;
+  final int sort;
+  final bool archived;
+
+  factory AccountType.fromMap(Map<String, Object?> m) => AccountType(
+        id: m['id']! as int,
+        name: (m['name'] as String?) ?? '',
+        sort: (m['sort'] as num?)?.toInt() ?? 0,
+        archived: ((m['archived'] as num?)?.toInt() ?? 0) == 1,
+      );
 }
 
 class TxnCategory {

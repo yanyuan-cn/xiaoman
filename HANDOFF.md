@@ -1,6 +1,6 @@
 # 项目交接：小满（xiaoman）
 
-> 最后更新：2026-11-05 · 对应 **v2.2.1+27**
+> 最后更新：2026-11-05 · 对应 **v2.3.0+28**
 >
 > 先读这份，再读 `KNOWN-ISSUES.md`（缺陷与取舍）和 `SETUP.md`（环境与命令）。
 > `PATHS.md` / `ENVIRONMENT.md` / `git-state.txt` 是第一次交接时的环境快照，仅作历史参考。
@@ -45,7 +45,7 @@ lib/
     budget_period.dart      预算周期
     app_icon.dart           桌面图标切换（MethodChannel 到 MainActivity）
   data/
-    db.dart                 建表与迁移（kDbVersion = 4）
+    db.dart                 建表与迁移（kDbVersion = 5）
     models.dart             Txn / Account / TxnCategory / BudgetRule / RecurringRule / XmMood
     repo.dart               连接、CRUD、迁移（对外仍是唯一数据入口）
     repo_backup.dart        备份导出 / 恢复（planBackupRestore 是纯函数，有单测）
@@ -67,7 +67,7 @@ assets/icon/res/            启动图标（D1 深色 + D3 浅色两套，含自�
 scripts/init_android.ps1    生成 android/、权限、图标别名、Kotlin 模板
 scripts/release.ps1         一键发版
 scripts/android/MainActivity.kt  图标切换的原生实现（生成目录会被覆盖，源文件放这里）
-test/                       金额 / 编码 / 备份规划的单测（21 条）
+test/                       金额 / 编码 / 备份规划 / xlsx 导入的单测（26 条）
 ```
 
 **自动生成、不要手改**：`android/`、`build/`、`.dart_tool/`。
@@ -95,7 +95,7 @@ NDK 28.2.13676358。
 
 1. 金额一律存「分」的 int，禁止 double；时间存 UTC 毫秒。
 2. 转账是 txns 的单条记录（`kind='transfer'` + `to_account_id`）。
-3. 软删除（`deleted_at`），删除后 3 秒内可撤销。
+3. 软删除（`deleted_at`），删除后 6 秒内可撤销。
 4. 导入去重用指纹 `FNV-1a(kind|amount|分钟|note)`，写进 `dedup_hash`。
 5. 不用 provider/riverpod/bloc，只有 `DataBus` 单例广播刷新。
 6. 更新机制不用 GitHub API，用仓库 `version.json` 比 versionCode，多镜像回退。

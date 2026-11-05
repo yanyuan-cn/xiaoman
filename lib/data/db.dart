@@ -2,7 +2,26 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 const String kDbName = 'xiaoman.db';
-const int kDbVersion = 4;
+const int kDbVersion = 5;
+
+/// 内置的账户类型。`accounts.type` 里存的是**名字**，不是 key，
+/// 这样用户改名时只需要 UPDATE 一次，不用维护一张映射表。
+const List<String> kSeedAccountTypes = <String>[
+  '活期存款',
+  '定期存款',
+  '银行卡',
+  '电子钱包',
+  '现金',
+];
+
+/// 老版本 `accounts.type` 存的是英文 key，迁移时换成名字。
+const Map<String, String> kLegacyAccountTypes = <String, String>{
+  'savings': '活期存款',
+  'deposit': '定期存款',
+  'bank': '银行卡',
+  'ewallet': '电子钱包',
+  'cash': '现金',
+};
 
 Future<Database> openLedgerDb() async {
   final String path = p.join(await getDatabasesPath(), kDbName);
@@ -118,6 +137,14 @@ const List<String> _schema = <String>[
     value TEXT
   )
   ''',
+  '''
+  CREATE TABLE account_types(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    sort INTEGER NOT NULL DEFAULT 0,
+    archived INTEGER NOT NULL DEFAULT 0
+  )
+  ''',
 ];
 
 Future<void> _createSchema(Database db, int version) async {
@@ -208,13 +235,45 @@ Future<void> _upgrade(Database db, int oldVersion, int newVersion) async {
       await db.execute('ALTER TABLE accounts ADD COLUMN note TEXT');
     }
   }
+
+  // v5：账户类型改成可自定义（一张表 + 把老的英文 key 换成中文名）
+  if (oldVersion < 5) {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS account_types(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        sort INTEGER NOT NULL DEFAULT 0,
+        archived INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    final List<Map<String, Object?>> existing =
+        await db.query('account_types', limit: 1);
+    if (existing.isEmpty) {
+      int i = 0;
+      for (final String name in kSeedAccountTypes) {
+        await db.insert('account_types', <String, Object?>{
+          'name': name,
+          'sort': i++,
+          'archived': 0,
+        });
+      }
+    }
+    for (final MapEntry<String, String> e in kLegacyAccountTypes.entries) {
+      await db.update(
+        'accounts',
+        <String, Object?>{'type': e.value},
+        where: 'type = ?',
+        whereArgs: <Object>[e.key],
+      );
+    }
+  }
 }
 const List<List<String>> _seedAccounts = <List<String>>[
-  <String>['支付宝', 'ewallet'],
-  <String>['微信', 'ewallet'],
-  <String>['招商银行工资卡', 'bank'],
-  <String>['重庆农村商业银行', 'bank'],
-  <String>['工商银行', 'bank'],
+  <String>['支付宝', '电子钱包'],
+  <String>['微信', '电子钱包'],
+  <String>['招商银行工资卡', '银行卡'],
+  <String>['重庆农村商业银行', '银行卡'],
+  <String>['工商银行', '银行卡'],
 ];
 
 /// 支出一级分类 -> 二级分类（来自用户 2026 年真实账单）
@@ -237,6 +296,15 @@ const List<String> _incomeTop = <String>[
 
 Future<void> _seed(Database db) async {
   final int now = DateTime.now().millisecondsSinceEpoch;
+
+  int typeSort = 0;
+  for (final String name in kSeedAccountTypes) {
+    await db.insert('account_types', <String, Object?>{
+      'name': name,
+      'sort': typeSort++,
+      'archived': 0,
+    });
+  }
 
   for (int i = 0; i < _seedAccounts.length; i++) {
     await db.insert('accounts', <String, Object?>{

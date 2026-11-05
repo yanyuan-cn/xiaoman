@@ -371,7 +371,7 @@ class XmDivider extends StatelessWidget {
   }
 }
 
-/// 撤销提示：浮动、缩小、上移，避免挡住底部导航；3 秒后自动消失。
+/// 撤销提示：浮动、缩小、上移，避免挡住底部导航；6 秒后自动消失。
 void showUndoSnack(
   BuildContext context, {
   required String message,
@@ -383,7 +383,7 @@ void showUndoSnack(
   messenger.showSnackBar(
     SnackBar(
       content: Text(message, style: const TextStyle(fontSize: 13)),
-      duration: const Duration(seconds: 3),
+      duration: const Duration(seconds: 6),
       behavior: SnackBarBehavior.floating,
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 96),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),

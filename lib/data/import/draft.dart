@@ -88,8 +88,10 @@ const Map<String, String> _aliases = <String, String>{
 String mapCategory(String raw) => _aliases[raw] ?? raw;
 
 /// 自动识别格式并解析，认不出返回 null
-ImportParse? parseAny(String text) {
-  final List<List<String>> raw = parseCsv(text);
+ImportParse? parseAny(String text) => parseRows(parseCsv(text));
+
+/// 已经是二维表（CSV 解析结果 / Excel 读出来的行）时用这个入口。
+ImportParse? parseRows(List<List<String>> raw) {
   if (raw.isEmpty) return null;
   return _parseAlipay(raw) ?? _parseWechat(raw) ?? _parseMigration(raw);
 }

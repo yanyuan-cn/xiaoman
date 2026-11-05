@@ -802,7 +802,7 @@ class _ProfilePageState extends State<ProfilePage> {
             id: 'data',
             icon: Icons.inventory_2_outlined,
             title: '数据',
-            hint: '导入 · 导出 · 备份 · 分类 · 预算',
+            hint: '导入 · 导出 · 备份 · 分类与类型 · 预算',
             children: <Widget>[
               _tile(Icons.upload_file_outlined, '导入账单', _openImport,
                   first: true),
@@ -812,7 +812,7 @@ class _ProfilePageState extends State<ProfilePage> {
               _tile(Icons.undo_rounded, '撤销上次导入', _undoImport),
               _tile(Icons.pie_chart_outline, '预算', _openBudget),
               _tile(Icons.event_repeat_outlined, '定期扣款', _openRecurring),
-              _tile(Icons.category_outlined, '分类管理', _openCategories),
+              _tile(Icons.category_outlined, '分类与账户类型', _openCategories),
               _tile(Icons.cleaning_services_outlined, '存储占用', _showStorage),
             ],
           ),

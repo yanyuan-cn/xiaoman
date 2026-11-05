@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 
 import '../../data/import/decode.dart';
 import '../../data/import/draft.dart';
+import '../../data/import/xlsx.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
 
@@ -109,6 +110,12 @@ class _ImportPageState extends State<ImportPage> {
     return _categories.isEmpty ? 0 : _categories.first.id;
   }
 
+  ImportParse? _fromExcel(Uint8List bytes) {
+    final List<List<String>>? rows = readXlsxRows(bytes);
+    if (rows == null) return null;
+    return parseRows(rows);
+  }
+
   Future<void> _pickFile() async {
     setState(() {
       _busy = true;
@@ -117,7 +124,7 @@ class _ImportPageState extends State<ImportPage> {
     try {
       final List<PlatformFile>? files = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: <String>['csv', 'txt'],
+        allowedExtensions: <String>['csv', 'txt', 'xlsx'],
       );
       if (files == null || files.isEmpty) {
         setState(() => _busy = false);
@@ -126,13 +133,19 @@ class _ImportPageState extends State<ImportPage> {
       final PlatformFile file = files.first;
       final Uint8List bytes = await file.readAsBytes();
 
-      final String text = decodeText(bytes);
-
-      final ImportParse? parsed = parseAny(text);
+      // Excel 走二进制解析，CSV/TXT 走编码探测 + 文本解析。
+      // 不只看扩展名：有的设备会把 xlsx 的 mime 报成 octet-stream。
+      final bool isExcel =
+          file.name.toLowerCase().endsWith('.xlsx') || looksLikeXlsx(bytes);
+      final ImportParse? parsed =
+          isExcel ? _fromExcel(bytes) : parseAny(decodeText(bytes));
       if (parsed == null) {
         setState(() {
           _busy = false;
-          _error = '认不出这个文件。支持支付宝账单、微信账单、其他记账 App 导出的 CSV。';
+          _error = isExcel
+              ? '这个 Excel 读不出来。只支持 .xlsx；老的 .xls 请先在 Excel 里'
+                  '「另存为」xlsx 或 CSV 再导入。'
+              : '认不出这个文件。支持支付宝账单、微信账单、其他记账 App 导出的 CSV / XLSX。';
         });
         return;
       }
@@ -228,16 +241,17 @@ class _ImportPageState extends State<ImportPage> {
         const SizedBox(height: 8),
         Text(
           '支持三种来源，选文件后自动识别：\n'
-          '· 支付宝账单（CSV）\n'
-          '· 微信账单（解压后的 CSV）\n'
-          '· 其他记账 App 导出的 CSV',
+          '· 支付宝账单（CSV / XLSX）\n'
+          '· 微信账单（解压后的 CSV / XLSX）\n'
+          '· 其他记账 App 导出的 CSV / XLSX\n\n'
+          '老式的 .xls 不支持，请先另存为 xlsx。',
           style: TextStyle(fontSize: 13, color: Xm.ink3, height: 1.6),
         ),
         const SizedBox(height: 24),
         FilledButton.icon(
           onPressed: _busy ? null : _pickFile,
           icon: const Icon(Icons.folder_open),
-          label: Text(_busy ? '读取中…' : '选择 CSV 文件'),
+          label: Text(_busy ? '读取中…' : '选择文件'),
         ),
         if (_error != null) ...<Widget>[
           const SizedBox(height: 16),

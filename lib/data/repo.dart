@@ -433,6 +433,82 @@ class Repo {
     );
   }
 
+  // ------------------------------------------------------------------
+  // 账户类型
+  // ------------------------------------------------------------------
+
+  Future<List<AccountType>> accountTypes() async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'account_types',
+      where: 'archived = 0',
+      orderBy: 'sort ASC, id ASC',
+    );
+    return rows.map(AccountType.fromMap).toList(growable: false);
+  }
+
+  Future<int> addAccountType(String name) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'account_types',
+      columns: <String>['sort'],
+      orderBy: 'sort DESC',
+      limit: 1,
+    );
+    final int nextSort =
+        rows.isEmpty ? 0 : ((rows.first['sort'] as num?)?.toInt() ?? 0) + 1;
+    return db.insert('account_types', <String, Object?>{
+      'name': name,
+      'sort': nextSort,
+      'archived': 0,
+    });
+  }
+
+  /// 改名要连带把用到这个类型的账户一起改，否则它们会显示旧名字。
+  Future<void> renameAccountType(int id, String name) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'account_types',
+      columns: <String>['name'],
+      where: 'id = ?',
+      whereArgs: <Object>[id],
+      limit: 1,
+    );
+    if (rows.isEmpty) return;
+    final String old = rows.first['name']! as String;
+    if (old == name) return;
+
+    await db.transaction((Transaction txn) async {
+      await txn.update(
+        'account_types',
+        <String, Object?>{'name': name},
+        where: 'id = ?',
+        whereArgs: <Object>[id],
+      );
+      await txn.update(
+        'accounts',
+        <String, Object?>{'type': name},
+        where: 'type = ?',
+        whereArgs: <Object>[old],
+      );
+    });
+  }
+
+  /// 有多少个账户在用这个类型（用于删除前的提示）
+  Future<int> accountTypeUsage(String name) async {
+    final List<Map<String, Object?>> rows = await db.rawQuery(
+      'SELECT COUNT(*) AS c FROM accounts WHERE archived = 0 AND type = ?',
+      <Object>[name],
+    );
+    return (rows.first['c'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<void> archiveAccountType(int id) async {
+    await db.update(
+      'account_types',
+      <String, Object?>{'archived': 1},
+      where: 'id = ?',
+      whereArgs: <Object>[id],
+    );
+  }
+
   /// 某个账户最近的流水（含转入的）
   Future<List<Txn>> txnsForAccount(int accountId, {int limit = 20}) async {
     final List<Map<String, Object?>> rows = await db.query(

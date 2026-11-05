@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '2.2.1';
-const int kAppBuild = 27;
+const String kAppVersion = '2.3.0';
+const int kAppBuild = 28;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,13 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+2.3.0
+· 账户类型可以自己增删改：我的 → 分类与账户类型 → 账户类型
+· 改类型名字会连带更新所有用到它的账户，不用一个个改
+· 导入支持 Excel（.xlsx），和 CSV 一样自动识别支付宝/微信/其他记账 App
+· 删除后的撤销提示从 3 秒延长到 6 秒
+· 账户的「类型」优先读数据库，不再写死在代码里（老账户的 bank/ewallet 会自动转成中文名）
+
 2.2.1
 · 首页顶部两张卡中间的大片空白收掉，改成正常内边距
 · 进度条加粗、金色更亮、底槽更明显，深绿底上一眼能看见

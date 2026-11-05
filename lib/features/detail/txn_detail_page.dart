@@ -120,7 +120,7 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
         title: const Text('删除这笔'),
-        content: const Text('删除后可以点「撤销」找回（3 秒内）。'),
+        content: const Text('删除后可以点「撤销」找回（6 秒内）。'),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),

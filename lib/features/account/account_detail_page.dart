@@ -20,20 +20,12 @@ class AccountDetailPage extends StatefulWidget {
   State<AccountDetailPage> createState() => _AccountDetailPageState();
 }
 
-const Map<String, String> _typeOptions = <String, String>{
-  'savings': '活期存款',
-  'deposit': '定期存款',
-  'bank': '银行卡',
-  'ewallet': '电子钱包',
-  'cash': '现金',
-};
-
 class _AccountDetailPageState extends State<AccountDetailPage> {
   final TextEditingController _name = TextEditingController();
   final TextEditingController _balance = TextEditingController();
   final TextEditingController _note = TextEditingController();
 
-  String _type = 'bank';
+  String _type = '银行卡';
   bool _isLiability = false;
   bool _includeInTotal = true;
   bool _loaded = false;
@@ -41,9 +33,21 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
 
   int _delta = 0;
   List<Txn> _txns = const <Txn>[];
+  List<AccountType> _types = const <AccountType>[];
   Map<int, TxnCategory> _categories = const <int, TxnCategory>{};
 
   bool get _isEditing => widget.account != null;
+
+  /// 选择列表：库里现有的类型；如果这个账户用的类型已经被隐藏/是老的英文 key，
+  /// 也把它补进来，避免保存时被悄悄换掉。
+  List<String> get _typeChoices {
+    final List<String> names =
+        <String>[for (final AccountType t in _types) t.name];
+    if (!names.contains(_type)) {
+      names.insert(0, Account.typeLabel(_type));
+    }
+    return names;
+  }
 
   @override
   void initState() {
@@ -52,7 +56,7 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
     if (a != null) {
       _name.text = a.name;
       _note.text = a.note ?? '';
-      _type = a.type;
+      _type = Account.typeLabel(a.type);
       _isLiability = a.isLiability;
       _includeInTotal = a.includeInTotal;
     }
@@ -70,6 +74,7 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
   Future<void> _load() async {
     final Map<int, int> deltas = await widget.repo.accountDeltas();
     final List<TxnCategory> cats = await widget.repo.categories();
+    final List<AccountType> types = await widget.repo.accountTypes();
 
     List<Txn> txns = const <Txn>[];
     int delta = 0;
@@ -81,8 +86,11 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
 
     if (!mounted) return;
     setState(() {
-      // accounts 里已经带 note，这里只是为了让新增页也知道列表数量
       _categories = <int, TxnCategory>{for (final TxnCategory c in cats) c.id: c};
+      _types = types;
+      if (!_isEditing && types.isNotEmpty && !types.any((AccountType t) => t.name == _type)) {
+        _type = types.first.name;
+      }
       _txns = txns;
       _delta = delta;
       if (a != null) {
@@ -195,13 +203,12 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
                     spacing: 8,
                     runSpacing: 8,
                     children: <Widget>[
-                      for (final MapEntry<String, String> e
-                          in _typeOptions.entries)
+                      for (final String name in _typeChoices)
                         XmChoice(
-                          label: e.value,
+                          label: name,
                           dense: true,
-                          selected: _type == e.key,
-                          onTap: () => setState(() => _type = e.key),
+                          selected: _type == name,
+                          onTap: () => setState(() => _type = name),
                         ),
                     ],
                   ),
