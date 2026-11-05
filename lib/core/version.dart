@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '2.2.0';
-const int kAppBuild = 26;
+const String kAppVersion = '2.2.1';
+const int kAppBuild = 27;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,11 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+2.2.1
+· 首页顶部两张卡中间的大片空白收掉，改成正常内边距
+· 进度条加粗、金色更亮、底槽更明显，深绿底上一眼能看见
+· 修复分类卡上「已用 -59%」这种负百分比，改成「已用 41% / 超 12%」
+
 2.2.0
 · 首页顶部改成左右滑动：左「今日额度」，右「本月概览」（支出/收入/结余+预算），下面有小圆点
 · 超支时额度卡不再把负数显示成正数，改成「本月已超支 ¥xxx」并变红

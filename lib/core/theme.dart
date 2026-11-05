@@ -217,6 +217,11 @@ class Xm {
     colors: <Color>[Color(0xFFF2DCB0), Color(0xFFD9AF6C)],
   );
 
+  /// 深绿卡上的进度条：比 [barGold] 更亮更黄一点，在深底上看得清
+  static const LinearGradient barGoldOnDark = LinearGradient(
+    colors: <Color>[Color(0xFFFFE7BE), Color(0xFFE9B96F)],
+  );
+
   // ---------------- 阴影（§2.5，只有三档） ----------------
   static List<BoxShadow> get cardShadow => <BoxShadow>[
         BoxShadow(

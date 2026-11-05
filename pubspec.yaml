@@ -1,7 +1,7 @@
 name: xiaoman
 description: 小满 · 本地优先的记账本
 publish_to: none
-version: 2.2.0+26
+version: 2.2.1+27
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

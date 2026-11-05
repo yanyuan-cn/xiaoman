@@ -365,13 +365,15 @@ class _LedgerPageState extends State<LedgerPage> {
   /// 两张卡左右滑动切换。卡片高度由「是否展开本月账本」决定，
   /// 滑走时自动收起，避免高度在不同页之间来回跳。
   Widget _heroCarousel() {
-    final double h = (_heroPage == 0 && _bookOpen) ? 408 : 248;
+    // 两张卡共用同一高度（避免滑动时高度跳变），内容从顶部开始排，
+    // 多出来的空间留在卡片底部当内边距，不再在中间撑出一个大洞。
+    final double h = (_heroPage == 0 && _bookOpen) ? 350 : 200;
     return Column(
       children: <Widget>[
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
           child: AnimatedSize(
-            duration: const Duration(milliseconds: 300),
+            duration: const Duration(milliseconds: 280),
             curve: XmEase.e2,
             alignment: Alignment.topCenter,
             child: SizedBox(
@@ -387,7 +389,7 @@ class _LedgerPageState extends State<LedgerPage> {
             ),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         _heroDots(),
       ],
     );
@@ -489,7 +491,7 @@ class _LedgerPageState extends State<LedgerPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
@@ -542,14 +544,14 @@ class _LedgerPageState extends State<LedgerPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   XmProgressBar(
                     value: ratio,
-                    height: 5,
+                    height: 7,
                     overdue: broke,
-                    track: Colors.white.withValues(alpha: 0.16),
+                    fill: Xm.barGoldOnDark,
+                    track: Colors.white.withValues(alpha: 0.22),
                   ),
-                  const Spacer(),
                   // 「本月账本」——整行可点，原地展开
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -658,7 +660,7 @@ class _LedgerPageState extends State<LedgerPage> {
                   CrossAxisAlignment.end),
             ],
           ),
-          const Spacer(),
+          const SizedBox(height: 14),
           if (!showBudget || total <= 0)
             GestureDetector(
               onTap: _openBudget,
@@ -699,12 +701,13 @@ class _LedgerPageState extends State<LedgerPage> {
               ],
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(vertical: 9),
               child: XmProgressBar(
                 value: ratio,
-                height: 6,
+                height: 7,
                 overdue: over,
-                track: Colors.white.withValues(alpha: 0.16),
+                fill: Xm.barGoldOnDark,
+                track: Colors.white.withValues(alpha: 0.22),
               ),
             ),
             if (_state.budgetFood > 0 || _state.budgetShop > 0)
@@ -852,12 +855,17 @@ class _LedgerPageState extends State<LedgerPage> {
     final int budget = _catBudget(c.id);
     final bool over = budget > 0 && c.spent > budget;
     final int monthExpense = _sum.expense == 0 ? 1 : _sum.expense;
+    // 有预算：条 = 已用比例；没预算：条 = 占本月支出的比例
     final double ratio = budget > 0
         ? (c.spent / budget).clamp(0.0, 1.0).toDouble()
         : (c.spent / monthExpense).clamp(0.0, 1.0).toDouble();
-    final double pct = budget > 0
-        ? ((c.spent - budget) / budget * 100)
-        : (c.spent / monthExpense * 100);
+    // 有预算时always给"已用多少百分比"；超了才给"超多少百分比"
+    final int pct = budget > 0
+        ? (over
+                ? ((c.spent - budget) / budget * 100).round()
+                : (c.spent / budget * 100).round())
+            .clamp(0, 999)
+        : (c.spent / monthExpense * 100).round();
 
     final List<Txn> recent = (<Txn>[...c.txns]
           ..sort((Txn a, Txn b) => b.occurredAtMs.compareTo(a.occurredAtMs)))
@@ -920,7 +928,7 @@ class _LedgerPageState extends State<LedgerPage> {
                                   borderRadius: BorderRadius.circular(5),
                                 ),
                                 child: Text(
-                                  '${over ? '超' : '用'} ${pct.round()}%',
+                                  '${over ? '超' : '已用'} $pct%',
                                   style: Xm.text(10.5, FontWeight.w600,
                                       color: over ? Xm.warn : Xm.brand,
                                       height: 1),
@@ -965,7 +973,7 @@ class _LedgerPageState extends State<LedgerPage> {
                       Text(
                         budget > 0
                             ? '预算 ${formatCents(budget)}'
-                            : '占 ${pct.round()}%',
+                            : '占 $pct%',
                         style: Xm.text(10.5, FontWeight.w400,
                             spacing: 0.2, color: Xm.ink3),
                       ),
