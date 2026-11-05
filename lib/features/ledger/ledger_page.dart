@@ -34,11 +34,18 @@ class _LedgerPageState extends State<LedgerPage> {
   final GlobalKey _fabKey = GlobalKey();
   final Map<int, GlobalKey> _rowKeys = <int, GlobalKey>{};
 
+  /// 顶部卡片：0 = 今日额度，1 = 本月概览（左右滑动切换）
+  final PageController _heroCtrl = PageController();
+  int _heroPage = 0;
+
   /// 额度卡里的「本月账本」是否展开
   bool _bookOpen = false;
 
   /// 展开着的分类卡 id
   int? _openCategory;
+
+  /// 分类区是否显示全部（而不是只显示前三）
+  bool _showAllCats = false;
 
   @override
   void initState() {
@@ -50,6 +57,7 @@ class _LedgerPageState extends State<LedgerPage> {
   @override
   void dispose() {
     DataBus.instance.removeListener(_onDataChanged);
+    _heroCtrl.dispose();
     _state.dispose();
     super.dispose();
   }
@@ -207,8 +215,8 @@ class _LedgerPageState extends State<LedgerPage> {
     return sum;
   }
 
-  /// 本月支出最高的三个一级分类。
-  List<_CatStat> get _topCats {
+  /// 本月支出较高的分类。`_topCats` 取前三，`_catStats` 是全量。
+  List<_CatStat> get _catStats {
     final Map<int, _CatStat> map = <int, _CatStat>{};
     for (final Txn t in _state.txns) {
       if (!t.isExpense) continue;
@@ -229,7 +237,7 @@ class _LedgerPageState extends State<LedgerPage> {
     }
     final List<_CatStat> list = map.values.toList()
       ..sort((_CatStat a, _CatStat b) => b.spent.compareTo(a.spent));
-    return list.take(3).toList(growable: false);
+    return list;
   }
 
   /// 某个分类的预算；没有就返回 0。
@@ -261,7 +269,7 @@ class _LedgerPageState extends State<LedgerPage> {
                     padding: EdgeInsets.zero,
                     children: <Widget>[
                       _header(),
-                      _quotaCard(),
+                      _heroCarousel(),
                       ..._catsSection(),
                       _recentSection(),
                       const SizedBox(height: 120),
@@ -352,49 +360,107 @@ class _LedgerPageState extends State<LedgerPage> {
     );
   }
 
-  // ---------------- 额度卡 ----------------
+  // ---------------- 顶部卡片：今日额度 / 本月概览 ----------------
 
-  Widget _quotaCard() {
+  /// 两张卡左右滑动切换。卡片高度由「是否展开本月账本」决定，
+  /// 滑走时自动收起，避免高度在不同页之间来回跳。
+  Widget _heroCarousel() {
+    final double h = (_heroPage == 0 && _bookOpen) ? 408 : 248;
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: XmEase.e2,
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              height: h,
+              child: PageView(
+                controller: _heroCtrl,
+                onPageChanged: (int i) => setState(() {
+                  _heroPage = i;
+                  if (i != 0) _bookOpen = false;
+                }),
+                children: <Widget>[_quotaPage(), _monthOverviewPage()],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        _heroDots(),
+      ],
+    );
+  }
+
+  Widget _heroDots() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        for (int i = 0; i < 2; i++)
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOut,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            width: _heroPage == i ? 16 : 6,
+            height: 5,
+            decoration: BoxDecoration(
+              color: _heroPage == i
+                  ? Xm.brand
+                  : Xm.ink3.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 深绿卡的外壳：渐变 + 右上角光源 + 阴影。
+  Widget _heroSurface({required Widget child}) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        gradient: Xm.heroGradient,
+        boxShadow: Xm.heroShadow,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0.76, -0.36),
+                  radius: 1.2,
+                  colors: <Color>[
+                    Colors.white.withValues(alpha: 0.20),
+                    Colors.transparent,
+                  ],
+                  stops: const <double>[0, 0.62],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _quotaPage() {
     final int used = _state.hasBudget ? _state.budgetSpentTotal : _sum.expense;
     final int total = _state.hasBudget ? _state.budgetTotal : 0;
     final double ratio =
         total <= 0 ? 0 : (used / total).clamp(0.0, 1.0).toDouble();
-    final bool overdue = _available < 0;
-    final int yesterday = _yesterdayExpense;
-    final int perDay = _dailyQuota;
-    final int diff = perDay - yesterday;
+    final bool broke = _available < 0;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(26),
-          gradient: Xm.heroGradient,
-          boxShadow: Xm.heroShadow,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          children: <Widget>[
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: const Alignment(0.76, -0.36),
-                    radius: 1.2,
-                    colors: <Color>[
-                      Colors.white.withValues(alpha: 0.20),
-                      Colors.transparent,
-                    ],
-                    stops: const <double>[0, 0.62],
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
+    return _heroSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
                   Row(
                     children: <Widget>[
                       Container(
@@ -413,9 +479,11 @@ class _LedgerPageState extends State<LedgerPage> {
                       ),
                       const SizedBox(width: 7),
                       Text(
-                        _state.hasBudget
-                            ? '今日额度 · 剩 $_daysLeft 天'
-                            : '今日还能花 · 剩 $_daysLeft 天',
+                        broke
+                            ? '本月已超支 · 剩 $_daysLeft 天'
+                            : (_state.hasBudget
+                                ? '今日额度 · 剩 $_daysLeft 天'
+                                : '今日还能花 · 剩 $_daysLeft 天'),
                         style: Xm.text(12, FontWeight.w400,
                             spacing: 0.8, color: Xm.onDarkLabel),
                       ),
@@ -426,8 +494,9 @@ class _LedgerPageState extends State<LedgerPage> {
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
                     children: <Widget>[
-                      Text('¥',
-                          style: Xm.text(22, FontWeight.w500,
+                      // 超支时不显示「¥」而是「超」，避免把负数读成正数
+                      Text(broke ? '超' : '¥',
+                          style: Xm.text(broke ? 18 : 22, FontWeight.w500,
                               color: Colors.white.withValues(alpha: 0.85))),
                       const SizedBox(width: 3),
                       Flexible(
@@ -435,13 +504,25 @@ class _LedgerPageState extends State<LedgerPage> {
                           fit: BoxFit.scaleDown,
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            formatCents(perDay.abs()),
+                            formatCents(
+                                broke ? -_available : _dailyQuota.abs()),
                             style: Xm.text(42, FontWeight.w700,
                                 spacing: -2, height: 1, tabular: true,
-                                color: Colors.white),
+                                color: broke
+                                    ? const Color(0xFFFFC9C2)
+                                    : Colors.white),
                           ),
                         ),
                       ),
+                      if (!broke) ...<Widget>[
+                        const SizedBox(width: 6),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 5),
+                          child: Text('/ 天',
+                              style: Xm.text(11.5, FontWeight.w400,
+                                  color: Xm.onDarkNote)),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 9),
@@ -455,7 +536,7 @@ class _LedgerPageState extends State<LedgerPage> {
                           size: 11, color: Colors.white.withValues(alpha: 0.5)),
                       const SizedBox(width: 3),
                       Text(
-                        '昨日结余 ${diff >= 0 ? '+' : '-'}¥${formatCents(diff.abs())}',
+                        '昨天花了 ¥${formatCents(_yesterdayExpense)}',
                         style: Xm.text(11.5, FontWeight.w400,
                             color: Xm.onDarkNote, tabular: true),
                       ),
@@ -465,10 +546,10 @@ class _LedgerPageState extends State<LedgerPage> {
                   XmProgressBar(
                     value: ratio,
                     height: 5,
-                    overdue: overdue,
+                    overdue: broke,
                     track: Colors.white.withValues(alpha: 0.16),
                   ),
-                  const SizedBox(height: 2),
+                  const Spacer(),
                   // 「本月账本」——整行可点，原地展开
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -507,11 +588,172 @@ class _LedgerPageState extends State<LedgerPage> {
                     child: _monthBook(),
                   ),
                 ],
+      ),
+    );
+  }
+
+  /// 第二页：原来首页那张「支出 / 收入 / 结余 + 预算」的总览卡。
+  Widget _monthOverviewPage() {
+    final MonthSummary s = _sum;
+    final bool showBudget = _state.isCurrentPeriod && !_state.loading;
+    final int used = _state.budgetSpentTotal;
+    final int total = _state.budgetTotal;
+    final int remaining = total - used;
+    final double ratio =
+        total <= 0 ? 0 : (used / total).clamp(0.0, 1.0).toDouble();
+    final bool over = remaining < 0;
+
+    Widget stat(String label, String value, Color color, CrossAxisAlignment a) {
+      return Expanded(
+        child: Column(
+          crossAxisAlignment: a,
+          children: <Widget>[
+            Text(label, style: Xm.onDarkLabelStyle),
+            const SizedBox(height: 7),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: a == CrossAxisAlignment.start
+                  ? Alignment.centerLeft
+                  : (a == CrossAxisAlignment.end
+                      ? Alignment.centerRight
+                      : Alignment.center),
+              child: XmAmount(
+                text: value,
+                style: Xm.amountS.copyWith(color: color),
               ),
             ),
           ],
         ),
+      );
+    }
+
+    return _heroSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Text('本月概览 · ${fmtMonth(_state.month)}',
+                  style: Xm.text(12, FontWeight.w400,
+                      spacing: 0.8, color: Xm.onDarkLabel)),
+              const Spacer(),
+              GestureDetector(
+                onTap: _openBudget,
+                behavior: HitTestBehavior.opaque,
+                child: Text('预算设置',
+                    style: Xm.text(11.5, FontWeight.w500,
+                        color: Colors.white.withValues(alpha: 0.55))),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: <Widget>[
+              stat('支出', formatCents(s.expense), Colors.white,
+                  CrossAxisAlignment.start),
+              stat('收入', formatCents(s.income), Colors.white,
+                  CrossAxisAlignment.center),
+              stat('结余', formatCents(s.net), Xm.goldOnDark,
+                  CrossAxisAlignment.end),
+            ],
+          ),
+          const Spacer(),
+          if (!showBudget || total <= 0)
+            GestureDetector(
+              onTap: _openBudget,
+              behavior: HitTestBehavior.opaque,
+              child: Row(
+                children: <Widget>[
+                  Text('设置预算，看看每月还能花多少',
+                      style: Xm.text(11.5, FontWeight.w400,
+                          color: Xm.onDarkNote)),
+                  const Spacer(),
+                  const Icon(Icons.chevron_right_rounded,
+                      size: 18, color: Xm.onDarkNote),
+                ],
+              ),
+            )
+          else ...<Widget>[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Divider(height: 1, thickness: 1, color: Xm.onDarkLine),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: <Widget>[
+                Text('预算 ¥${formatCents(total)}',
+                    style: Xm.text(11.5, FontWeight.w400,
+                        color: Xm.onDarkNote)),
+                const Spacer(),
+                Text(
+                  over
+                      ? '超支 ¥${formatCents(-remaining)}'
+                      : '剩余 ¥${formatCents(remaining)}',
+                  style: Xm.amountXS.copyWith(
+                    color: over ? const Color(0xFFFF9B90) : Xm.goldOnDark,
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: XmProgressBar(
+                value: ratio,
+                height: 6,
+                overdue: over,
+                track: Colors.white.withValues(alpha: 0.16),
+              ),
+            ),
+            if (_state.budgetFood > 0 || _state.budgetShop > 0)
+              Row(
+                children: <Widget>[
+                  if (_state.budgetFood > 0)
+                    Expanded(
+                      child: _miniBudget('餐饮', _state.budgetSpentFood,
+                          _state.budgetFood),
+                    ),
+                  if (_state.budgetFood > 0 && _state.budgetShop > 0)
+                    const SizedBox(width: 16),
+                  if (_state.budgetShop > 0)
+                    Expanded(
+                      child: _miniBudget('购物', _state.budgetSpentShop,
+                          _state.budgetShop),
+                    ),
+                ],
+              ),
+          ],
+        ],
       ),
+    );
+  }
+
+  Widget _miniBudget(String label, int used, int total) {
+    final int remain = total - used;
+    final bool overdue = remain < 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(label, style: Xm.text(11, FontWeight.w400, color: Xm.onDarkNote)),
+        const SizedBox(height: 3),
+        Row(
+          children: <Widget>[
+            Text('余', style: Xm.text(11, FontWeight.w500, color: Xm.onDarkNote)),
+            const SizedBox(width: 3),
+            Text(
+              '¥${formatCents(remain.abs())}',
+              style: Xm.text(
+                13,
+                FontWeight.w600,
+                color: overdue ? const Color(0xFFFF9B90) : Xm.onDarkStrong,
+                tabular: true,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -565,22 +807,36 @@ class _LedgerPageState extends State<LedgerPage> {
   // ---------------- 分类卡（二级菜单） ----------------
 
   List<Widget> _catsSection() {
-    final List<_CatStat> cats = _topCats;
-    if (cats.isEmpty) return const <Widget>[];
+    final List<_CatStat> all = _catStats;
+    if (all.isEmpty) return const <Widget>[];
 
-    final bool anyOver =
-        cats.any((_CatStat c) => _catBudget(c.id) > 0 && c.spent > _catBudget(c.id));
+    final List<_CatStat> shown =
+        _showAllCats ? all : all.take(3).toList(growable: false);
+    final bool anyOver = all.any(
+        (_CatStat c) => _catBudget(c.id) > 0 && c.spent > _catBudget(c.id));
 
     return <Widget>[
       XmSect(
-        anyOver ? '这几项在超' : '这三项花得最多',
-        trailing: '本月 ${cats.length}/${cats.length}',
+        anyOver
+            ? '这几项在超'
+            : (_showAllCats ? '本月分类' : '这三项花得最多'),
+        action: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() => _showAllCats = !_showAllCats),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Text(
+              _showAllCats ? '收起' : '全部 ${all.length} ›',
+              style: Xm.text(11.5, FontWeight.w500, color: Xm.ink3),
+            ),
+          ),
+        ),
       ),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
           children: <Widget>[
-            for (final _CatStat c in cats)
+            for (final _CatStat c in shown)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: _catCard(c),
@@ -674,6 +930,7 @@ class _LedgerPageState extends State<LedgerPage> {
                           ],
                         ),
                         const SizedBox(height: 5),
+                        // 没有预算时不画"进度"，只表示占比，用中性灰以免被误读成超支
                         XmProgressBar(
                           value: ratio,
                           height: 4,
@@ -681,9 +938,16 @@ class _LedgerPageState extends State<LedgerPage> {
                           track: Xm.isDark
                               ? Xm.surface2
                               : const Color(0xFFEDF1ED),
-                          fill: LinearGradient(
-                            colors: <Color>[c.color, c.color],
-                          ),
+                          fill: budget > 0
+                              ? LinearGradient(
+                                  colors: <Color>[c.color, c.color],
+                                )
+                              : const LinearGradient(
+                                  colors: <Color>[
+                                    Color(0xFFB9C4BC),
+                                    Color(0xFFB9C4BC),
+                                  ],
+                                ),
                         ),
                       ],
                     ),

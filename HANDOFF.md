@@ -1,6 +1,6 @@
 # 项目交接：小满（xiaoman）
 
-> 最后更新：2026-11-05 · 对应 **v2.1.0+25**
+> 最后更新：2026-11-05 · 对应 **v2.2.0+26**
 >
 > 先读这份，再读 `KNOWN-ISSUES.md`（缺陷与取舍）和 `SETUP.md`（环境与命令）。
 > `PATHS.md` / `ENVIRONMENT.md` / `git-state.txt` 是第一次交接时的环境快照，仅作历史参考。
@@ -47,7 +47,13 @@ lib/
   data/
     db.dart                 建表与迁移（kDbVersion = 4）
     models.dart             Txn / Account / TxnCategory / BudgetRule / RecurringRule / XmMood
-    repo.dart               所有读写（唯一数据入口）
+    repo.dart               连接、CRUD、迁移（对外仍是唯一数据入口）
+    repo_backup.dart        备份导出 / 恢复（planBackupRestore 是纯函数，有单测）
+    repo_import.dart        账单导入、去重、撤销整批
+    repo_budget.dart        预算读写与本期已用
+    repo_stats.dart         月度 / 分类 / 年度聚合
+                            ↑ 后四个是 `extension ... on Repo`，由 repo.dart
+                              re-export，调用方仍然只要 import 'repo.dart';
     update_service.dart     取 version.json、多源回退
     apk_updater.dart        下载 APK、SHA-256、调起安装
     import/decode.dart      编码探测（UTF-8 / BOM / GBK / GB18030）
@@ -61,7 +67,7 @@ assets/icon/res/            启动图标（D1 深色 + D3 浅色两套，含自�
 scripts/init_android.ps1    生成 android/、权限、图标别名、Kotlin 模板
 scripts/release.ps1         一键发版
 scripts/android/MainActivity.kt  图标切换的原生实现（生成目录会被覆盖，源文件放这里）
-test/                       金额与编码的单测
+test/                       金额 / 编码 / 备份规划的单测（21 条）
 ```
 
 **自动生成、不要手改**：`android/`、`build/`、`.dart_tool/`。

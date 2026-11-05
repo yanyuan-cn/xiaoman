@@ -1,6 +1,6 @@
 # 问题清单
 
-> 更新时间：2026-11-05 · 对应版本 **2.1.0+25**
+> 更新时间：2026-11-05 · 对应版本 **2.2.0+26**
 >
 > 旧版本文档里 I-1 ~ I-7 已全部关闭，历史记录见文末「已关闭」。
 
@@ -17,16 +17,18 @@
 **怎么改**：首次绑定时把匹配到的分类 id 存进 settings（`budget_cat_food` / `budget_cat_shop`），之后只认 id；分类被删时提示重绑。
 **验收**：改分类名后预算仍然对得上。
 
-### O-2 【代码】`flutter analyze` 还有 10 条 info（低）
+### O-2 【代码】`flutter analyze` 还有十几条 info（低）
 
 `dangling_library_doc_comments`、`prefer_const_constructors` 之类，不影响构建。
 **怎么改**：`dart fix --apply` 后人工过一遍，或逐条加 `const`。
 **验收**：`No issues found!`
 
-### O-3 【代码】没有测试覆盖（低）
+### O-3 【代码】测试覆盖仍然偏薄（中）
 
-只有 `test/money_test.dart`（金额工具）+ `test/decode_test.dart`（编码）。备份恢复、导入去重、定期扣款这些核心逻辑零测试。
-**建议**：至少给 `Repo.importBackup`、`dedupHashFor`、`runDueRecurringRules` 补上。
+2.2.0 给备份恢复了 12 条单测（`test/backup_test.dart`，覆盖坏数据、旧格式、
+多余字段、版本过高）。剩下的核心逻辑还是零测试：
+**建议**：下一步补 `dedupHashFor` + `importItems` 的去重、`runDueRecurringRules`
+的幂等（同一天跑两次不能记两笔）、`budgetSpent` 的周期边界。
 
 ### O-4 【仓库】README 容易过期（低）
 

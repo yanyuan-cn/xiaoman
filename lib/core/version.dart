@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '2.1.0';
-const int kAppBuild = 25;
+const String kAppVersion = '2.2.0';
+const int kAppBuild = 26;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,16 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+2.2.0
+· 首页顶部改成左右滑动：左「今日额度」，右「本月概览」（支出/收入/结余+预算），下面有小圆点
+· 超支时额度卡不再把负数显示成正数，改成「本月已超支 ¥xxx」并变红
+· 「昨日结余」改成「昨天花了 ¥xx」，不再容易被当成账户余额
+· 分类卡加了「全部 N ›」：点开展开全部分类，再点收起
+· 没有预算的分类不再画"进度条"，改成中性灰的占比条，不会误读成超支
+· 我的页重做成四个可折叠板块：数据 / 个性化 / 设置 / 关于
+· 备份恢复的"规划"部分抽成纯函数，补了 12 条单元测试（坏数据、旧格式、多余字段都能挡住）
+· 代码整理：repo.dart 从 1100 行拆成 备份/导入/预算/统计 四个扩展文件
+
 2.1.0
 · 按视觉稿重做主界面：顶部「今日额度」卡，可原地展开本月账本（收入/支出/可支配/剩余/日均）
 · 二级菜单：支出最高的三个分类变成可展开卡片，点开直接看这类最近 3 笔

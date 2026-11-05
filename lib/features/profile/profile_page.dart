@@ -39,6 +39,9 @@ class _ProfilePageState extends State<ProfilePage> {
   Map<String, int> _stats = const <String, int>{};
   String? _updateUrl;
 
+  /// 当前展开着的板块 id（data / look / settings / about）
+  final Set<String> _openSections = <String>{};
+
   @override
   void initState() {
     super.initState();
@@ -792,87 +795,109 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
             child: _profileCard(),
           ),
-          const XmSectionTitle('数据', group: true),
-          _menuCard(<Widget>[
-            _tile(Icons.upload_file_outlined, '导入账单', _openImport, first: true),
-            _tile(Icons.pie_chart_outline, '预算', _openBudget),
-            _tile(Icons.event_repeat_outlined, '定期扣款', _openRecurring),
-            _tile(Icons.undo_rounded, '撤销上次导入', _undoImport),
-            _tile(Icons.category_outlined, '分类管理', _openCategories),
-            _tile(Icons.file_download_outlined, '导出流水 CSV', _exportCsv),
-            _tile(Icons.backup_outlined, '备份为 JSON', _exportJson),
-            _tile(Icons.settings_backup_restore, '从备份恢复', _restoreBackup),
-            _tile(Icons.cleaning_services_outlined, '存储占用', _showStorage),
-          ]),
-          const SizedBox(height: 14),
-          const XmSectionTitle('关于', group: true),
-          _menuCard(<Widget>[
-            if (_pendingApk != null)
+          _section(
+            id: 'data',
+            icon: Icons.inventory_2_outlined,
+            title: '数据',
+            hint: '导入 · 导出 · 备份 · 分类 · 预算',
+            children: <Widget>[
+              _tile(Icons.upload_file_outlined, '导入账单', _openImport,
+                  first: true),
+              _tile(Icons.file_download_outlined, '导出流水 CSV', _exportCsv),
+              _tile(Icons.backup_outlined, '备份为 JSON', _exportJson),
+              _tile(Icons.settings_backup_restore, '从备份恢复', _restoreBackup),
+              _tile(Icons.undo_rounded, '撤销上次导入', _undoImport),
+              _tile(Icons.pie_chart_outline, '预算', _openBudget),
+              _tile(Icons.event_repeat_outlined, '定期扣款', _openRecurring),
+              _tile(Icons.category_outlined, '分类管理', _openCategories),
+              _tile(Icons.cleaning_services_outlined, '存储占用', _showStorage),
+            ],
+          ),
+          _section(
+            id: 'look',
+            icon: Icons.palette_outlined,
+            title: '个性化',
+            hint: '外观模式 · 应用图标',
+            children: <Widget>[
               _tile(
-                Icons.download_done_rounded,
-                '新版本 ${_pendingApk!.versionName}',
-                _installBackgroundUpdate,
+                Icons.brightness_6_outlined,
+                '外观模式',
+                _pickThemeMode,
                 first: true,
-                subtitle: _pendingApk!.downloaded
-                    ? '已下载，点击安装'
-                    : '已发现新版本，点击下载',
+                subtitle: ThemeController.instance.mode.label,
               ),
-            _tile(
-              Icons.system_update_alt,
-              _checking ? '正在检查…' : '检查更新',
-              _checking ? null : _checkUpdate,
-              first: _pendingApk == null,
-            ),
-            _switchTile(
-              icon: Icons.cloud_download_outlined,
-              title: '后台自动下载更新',
-              subtitle: _autoDownload ? '发现新版本后自动下好，点一下就能装' : '只提示有新版本，不自动下载',
-              value: _autoDownload,
-              onChanged: (bool v) async {
-                await BackgroundUpdate.setAutoDownload(widget.repo, v);
-                if (!mounted) return;
-                setState(() => _autoDownload = v);
-                if (v) BackgroundUpdate.check(widget.repo);
-              },
-            ),
-            _tile(
-              Icons.cloud_outlined,
-              '更新源',
-              _editUpdateUrl,
-              subtitle: (_updateUrl == null || _updateUrl!.isEmpty)
-                  ? '默认（自动尝试多个地址）'
-                  : _updateUrl!,
-            ),
-            _tile(Icons.article_outlined, '更新日志', _showChangelog),
-            _tile(Icons.info_outline, '开源地址', () => _openUrl(kRepoUrl)),
-          ]),
-          const SizedBox(height: 14),
-          const XmSectionTitle('外观', group: true),
-          _menuCard(<Widget>[
-            _tile(
-              Icons.brightness_6_outlined,
-              '外观模式',
-              _pickThemeMode,
-              first: true,
-              subtitle: ThemeController.instance.mode.label,
-            ),
-            _tile(
-              Icons.apps_rounded,
-              '应用图标',
-              _pickIcon,
-              subtitle: _iconId == AppIcon.d3 ? '米白方孔钱（浅色）' : '墨绿满未满（深色）',
-            ),
-          ]),
-          const SizedBox(height: 20),
+              _tile(
+                Icons.apps_rounded,
+                '应用图标',
+                _pickIcon,
+                subtitle: _iconId == AppIcon.d3 ? '米白方孔钱（浅色）' : '墨绿满未满（深色）',
+              ),
+            ],
+          ),
+          _section(
+            id: 'settings',
+            icon: Icons.tune_rounded,
+            title: '设置',
+            hint: '自动更新 · 更新源',
+            children: <Widget>[
+              _switchTile(
+                icon: Icons.cloud_download_outlined,
+                title: '后台自动下载更新',
+                subtitle: _autoDownload ? '发现新版本后自动下好，点一下就能装' : '只提示有新版本，不自动下载',
+                value: _autoDownload,
+                onChanged: (bool v) async {
+                  await BackgroundUpdate.setAutoDownload(widget.repo, v);
+                  if (!mounted) return;
+                  setState(() => _autoDownload = v);
+                  if (v) BackgroundUpdate.check(widget.repo);
+                },
+              ),
+              _tile(
+                Icons.cloud_outlined,
+                '更新源',
+                _editUpdateUrl,
+                subtitle: (_updateUrl == null || _updateUrl!.isEmpty)
+                    ? '默认（自动尝试多个地址）'
+                    : _updateUrl!,
+              ),
+            ],
+          ),
+          _section(
+            id: 'about',
+            icon: Icons.info_outline_rounded,
+            title: '关于',
+            hint: '版本 ${kAppVersion} · 开源地址 · 更新日志',
+            children: <Widget>[
+              if (_pendingApk != null)
+                _tile(
+                  Icons.download_done_rounded,
+                  '新版本 ${_pendingApk!.versionName}',
+                  _installBackgroundUpdate,
+                  first: true,
+                  subtitle: _pendingApk!.downloaded
+                      ? '已下载，点击安装'
+                      : '已发现新版本，点击下载',
+                ),
+              _tile(
+                Icons.system_update_alt,
+                _checking ? '正在检查…' : '检查更新',
+                _checking ? null : _checkUpdate,
+                first: _pendingApk == null,
+              ),
+              _tile(Icons.article_outlined, '更新日志', _showChangelog),
+              _tile(Icons.code_rounded, '开源地址', () => _openUrl(kRepoUrl)),
+            ],
+          ),
+          const SizedBox(height: 22),
           Center(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Icon(Icons.shield_outlined, size: 13, color: Xm.ink3),
-                SizedBox(width: 5),
+                const SizedBox(width: 5),
                 Text('数据只保存在本机，不联网上传',
                     style: TextStyle(
                         fontSize: 11.5, letterSpacing: 0.3, color: Xm.ink3)),
@@ -880,6 +905,96 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           const SizedBox(height: 96),
+        ],
+      ),
+    );
+  }
+
+  /// 一个可折叠的大板块：点标题展开，展开后就是原来的功能列表。
+  Widget _section({
+    required String id,
+    required IconData icon,
+    required String title,
+    required String hint,
+    required List<Widget> children,
+  }) {
+    final bool open = _openSections.contains(id);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      decoration: BoxDecoration(
+        color: Xm.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: Xm.cardShadow,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: <Widget>[
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => setState(() {
+                if (open) {
+                  _openSections.remove(id);
+                } else {
+                  _openSections.add(id);
+                }
+              }),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
+                child: Row(
+                  children: <Widget>[
+                    Container(
+                      width: 34,
+                      height: 34,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Xm.brandLL,
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: Icon(icon, size: 17, color: Xm.brand),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(title,
+                              style: Xm.text(15.5, FontWeight.w600,
+                                  spacing: -0.1)),
+                          const SizedBox(height: 2),
+                          Text(
+                            hint,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Xm.text(11.5, FontWeight.w400,
+                                color: Xm.ink3),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text('${children.length} 项',
+                        style: Xm.text(11.5, FontWeight.w400,
+                            color: Xm.ink3)),
+                    const SizedBox(width: 4),
+                    XmChevron(expanded: open),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          XmExpandable(
+            expanded: open,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Xm.isDark ? Xm.surface2 : const Color(0xFFFBFCFA),
+                border: Border(
+                  top: BorderSide(color: Xm.line, width: 0.6),
+                ),
+              ),
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Column(children: children),
+            ),
+          ),
         ],
       ),
     );
@@ -930,13 +1045,6 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _menuCard(List<Widget> rows) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: XmCard(child: Column(children: rows)),
     );
   }
 
