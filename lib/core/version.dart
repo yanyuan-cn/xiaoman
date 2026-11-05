@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '1.5.1';
-const int kAppBuild = 19;
+const String kAppVersion = '1.6.0';
+const int kAppBuild = 20;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,12 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+1.6.0
+· 新增自动记账：读取支付宝/微信/银行的付款通知，或解析银行短信
+· 只在本机解析，入账前由你确认，同一笔只会入账一次
+· 我的 → 自动记账：开关、授权引导、四步教程、待确认账单
+· 修复 .gitignore 误忽略 Kotlin 脚本源码的问题
+
 1.5.1
 · 修复检查更新：同时取所有更新源，用版本号最高的那个
 · Pages 改用 GitHub Actions 发布，不再依赖会失效的旧构建
