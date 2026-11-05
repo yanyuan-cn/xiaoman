@@ -1,8 +1,8 @@
 {
-  "versionCode": 23,
-  "versionName": "1.7.2",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.7.2/app-release.apk",
-  "sha256": "45A98854F493A91A76A672D9CA1B9C73E5136C07B732686A9E268299113BF9E7",
+  "versionCode": 24,
+  "versionName": "2.0.0",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.0.0/app-release.apk",
+  "sha256": "A976EA7B92341B9482FB9636424CB1601DEC06D407569DB33444A514C0A45382",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "修复底部导航卡顿与残影、自动记账页打不开、删除后的撤销提示挡住导航栏；新增后台更新：启动时静默检查并下载，点一下即可安装。"
+  "notes": "2.0.0 大焕新：首页二级分类菜单、记账条展开、每笔账记录心情（满意/后悔）与状态（工作/加班等）、资产备注、二级页面从条目放大进入、全局风格统一；移除自动记账；动效优化不再掉帧。"
 }
