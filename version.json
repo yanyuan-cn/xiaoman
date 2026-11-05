@@ -1,8 +1,8 @@
 {
-  "versionCode": 19,
-  "versionName": "1.5.1",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.5.1/app-release.apk",
-  "sha256": "CD2E6D9C4DD2D525F6DDAEEB6D06B6DFD006E9F51D415DA50CA33138E6D6526E",
+  "versionCode": 20,
+  "versionName": "1.6.0",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v1.6.0/app-release.apk",
+  "sha256": "DEDF581D1C38B67691D65B456BEBE47E4E89BEE4E03631D02DDD13BA2841D051",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "修复检查更新：同时请求所有更新源并取版本号最高的；Pages 改用 GitHub Actions 发布，避免线上清单停在旧版本。"
+  "notes": "新增自动记账：读取支付宝/微信/银行的付款通知，或解析银行短信；只在本机解析，入账前由你确认，同一笔只记一次；我的页新增自动记账入口与教程。"
 }

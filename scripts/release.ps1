@@ -245,9 +245,21 @@ $uploadArgs = @('-sS', '--http1.1', '--max-time', '900', '--retry', '2', '-X', '
                 '-H', 'Content-Type: application/vnd.android.package-archive',
                 '--data-binary', "@$ApkPath",
                 "https://uploads.github.com/repos/$RepoSlug/releases/$releaseId/assets?name=app-release.apk")
-# 直连优先：经代理传 57MB 实测会卡死，而 uploads.github.com 直连是通的。
-$upload = (Invoke-Curl -CurlArgs $uploadArgs).Output
-if ($upload -notmatch '"state"\s*:\s*"uploaded"') { Fail "upload failed: $upload" }
+# Write the response to a file instead of capturing stdout: with a 55MB request
+# body the captured stream sometimes comes back empty, which used to look like a
+# failed upload even when GitHub had accepted it.
+$uploadFile = Join-Path $env:TEMP "xiaoman-upload-$code.json"
+if (Test-Path $uploadFile) { Remove-Item $uploadFile -Force }
+$oldPref = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+& curl.exe @uploadArgs -o $uploadFile | Out-Null
+$uploadCode = $LASTEXITCODE
+$ErrorActionPreference = $oldPref
+
+$upload = if (Test-Path $uploadFile) { [IO.File]::ReadAllText($uploadFile) } else { '' }
+if ($upload -notmatch '"state"\s*:\s*"uploaded"') {
+    Fail "upload failed (curl exit $uploadCode): $upload"
+}
 if ($upload -notmatch ('"size"\s*:\s*' + $size)) { Fail 'uploaded size does not match local file' }
 Write-Host "   uploaded $size bytes"
 
