@@ -1,8 +1,8 @@
 {
-  "versionCode": 25,
-  "versionName": "2.1.0",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.1.0/app-release.apk",
-  "sha256": "B131B7FC78C74BEF0F0DA99B3ABD7834AEB49B4476AA2B38C18A85C20703A098",
+  "versionCode": 26,
+  "versionName": "2.2.0",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.2.0/app-release.apk",
+  "sha256": "79B600AD229F5267223BAC8544E24143A1D517984813D98F40ECDF85EC3DDBFC",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "2.1.0 按视觉稿重做：首页今日额度卡可展开本月账本、三个可展开的分类卡、每笔账标记值不值（值得/一般/后悔）与当时在干嘛（加班/应酬/情绪/日常/社交/工作）、记账面板与账单详情全新布局、资产备注标签、四页统一头部。"
+  "notes": "2.2.0：首页顶部可左右滑动切换「今日额度 / 本月概览」；超支不再显示成正数；分类卡支持展开全部分类；我的页重做为数据/个性化/设置/关于四个可折叠板块；备份恢复补了 12 条单测；代码拆分整理。"
 }
