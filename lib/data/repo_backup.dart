@@ -215,6 +215,20 @@ extension RepoBackup on Repo {
         }
         counts[t] = rows.length;
       }
+
+      // 2.3.0 之前的备份里没有 account_types 这张表，恢复完会把类型清空。
+      // 这里兜底补回默认类型，否则账户编辑页里只剩"当前类型"一项可选。
+      if ((counts['account_types'] ?? 0) == 0) {
+        int sort = 0;
+        for (final String name in kSeedAccountTypes) {
+          await txn.insert('account_types', <String, Object?>{
+            'name': name,
+            'sort': sort++,
+            'archived': 0,
+          });
+        }
+        counts['account_types'] = kSeedAccountTypes.length;
+      }
     });
 
     return BackupSummary(counts: counts, full: plan.full);

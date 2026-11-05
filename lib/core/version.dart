@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '2.3.0';
-const int kAppBuild = 28;
+const String kAppVersion = '2.3.1';
+const int kAppBuild = 29;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,9 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+2.3.1
+· 修复：恢复 2.3.0 之前的备份后账户类型会被清空，现在会自动补回默认类型
+
 2.3.0
 · 账户类型可以自己增删改：我的 → 分类与账户类型 → 账户类型
 · 改类型名字会连带更新所有用到它的账户，不用一个个改
