@@ -18,9 +18,12 @@ import org.json.JSONObject
 object PendingStore {
     private const val PREFS = "xiaoman_auto"
     private const val KEY_QUEUE = "pending"
-    private const val KEY_NOTIF = "switch_notif"
-    private const val KEY_SMS = "switch_sms"
-    private const val KEY_ACCESS = "switch_access"
+
+    const val KEY_MASTER = "switch_master"
+    const val KEY_ACCESS = "switch_access"
+    const val KEY_NOTIF = "switch_notif"
+    const val KEY_SMS = "switch_sms"
+
     private const val MAX = 60
 
     private fun prefs(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -49,7 +52,7 @@ object PendingStore {
         p.edit().putString(KEY_QUEUE, arr.toString()).apply()
     }
 
-    /** 同一条内容在 [withinMs] 内已经抓过就不再抓（悬浮窗会重复触发）。 */
+    /** 同一条内容在 [withinMs] 内已经抓过就不再抓。 */
     @Synchronized
     fun hasRecent(c: Context, raw: String, withinMs: Long): Boolean {
         return try {
@@ -63,6 +66,26 @@ object PendingStore {
             false
         } catch (_: Exception) {
             false
+        }
+    }
+
+    /**
+     * 丢掉已经处理过的条目（confirmed / ignored），保留待确认的。
+     * 写入库之后调用，避免队列无限增长、也避免同一条被反复处理。
+     */
+    @Synchronized
+    fun pruneHandled(c: Context) {
+        try {
+            val arr = JSONArray(prefs(c).getString(KEY_QUEUE, "[]"))
+            val keep = JSONArray()
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                if (o.optString("decision", "pending") == "pending") keep.put(o)
+            }
+            prefs(c).edit().putString(KEY_QUEUE, keep.toString()).apply()
+        } catch (_: Exception) {
+            // 解析失败就直接清空，避免坏数据卡死
+            prefs(c).edit().putString(KEY_QUEUE, "[]").apply()
         }
     }
 

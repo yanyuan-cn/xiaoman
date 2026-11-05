@@ -8,6 +8,46 @@ AutoBill? _p(String raw, {String source = 'notification'}) =>
     parseAutoBill(source: source, raw: raw, at: _at());
 
 void main() {
+  test('屏幕识别：微信账单详情（纯数字金额）', () {
+    final AutoBill? b = _p(
+      '微信\n小米科技有限责任公司\n-151.20\n交易成功\n'
+      '支付时间 2026-11-03 09:45:17\n付款方式 招商银行储蓄卡(2642)\n'
+      '收款方全称\n小米科技有限责任公司',
+      source: 'access',
+    );
+    expect(b, isNotNull);
+    expect(b!.amountCents, 15120);
+    expect(b.kind, 'expense');
+    expect(b.merchant, '小米科技有限责任公司');
+  });
+
+  test('屏幕识别：支付宝（全角减号）', () {
+    final AutoBill? b = _p(
+      '支付宝\n瓦力科技\n−9.90\n当前状态\n支付成功\n'
+      '商户全称\n北京瓦力网络科技有限公司',
+      source: 'access',
+    );
+    expect(b, isNotNull);
+    expect(b!.amountCents, 990);
+    expect(b.merchant, '北京瓦力网络科技有限公司');
+  });
+
+  test('屏幕识别：没有成功文案就不记账', () {
+    final AutoBill? b = _p(
+      '微信\n某个聊天页\n-12.00\n转账给张三',
+      source: 'access',
+    );
+    expect(b, isNull);
+  });
+
+  test('屏幕识别：卡号里的数字不会当金额', () {
+    final AutoBill? b = _p(
+      '微信\n某商户\n交易成功\n付款方式 招商银行储蓄卡(2642)\n单号 4200003228202611',
+      source: 'access',
+    );
+    expect(b, isNull);
+  });
+
   test('支付宝付款通知', () {
     final AutoBill? b = _p('支付宝 支付成功 ¥12.50');
     expect(b, isNotNull);

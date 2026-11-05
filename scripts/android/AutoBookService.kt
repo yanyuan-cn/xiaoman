@@ -29,7 +29,8 @@ class AutoBookService : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         val notification = sbn ?: return
-        if (!PendingStore.switchOn(this, "switch_notif")) return
+        if (!PendingStore.switchOn(this, PendingStore.KEY_MASTER)) return
+        if (!PendingStore.switchOn(this, PendingStore.KEY_NOTIF)) return
         if (!SOURCES.contains(notification.packageName)) return
 
         val extras = notification.notification?.extras ?: return

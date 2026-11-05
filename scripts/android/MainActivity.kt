@@ -45,6 +45,10 @@ class MainActivity : FlutterActivity() {
                         PendingStore.clear(this)
                         result.success(true)
                     }
+                    "pruneHandled" -> {
+                        PendingStore.pruneHandled(this)
+                        result.success(true)
+                    }
                     "notificationAccess" -> result.success(hasNotificationAccess())
                     "openNotificationSettings" -> {
                         startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))

@@ -13,9 +13,17 @@ class AutoBook {
 
   static const MethodChannel _ch = MethodChannel('xiaoman/autobook');
 
+  static const String switchMaster = 'switch_master';
   static const String switchNotif = 'switch_notif';
   static const String switchSms = 'switch_sms';
   static const String switchAccess = 'switch_access';
+
+  /// 丢掉已经处理过的队列条目（confirmed / ignored），保留待确认的。
+  static Future<void> pruneHandled() async {
+    try {
+      await _ch.invokeMethod<bool>('pruneHandled');
+    } catch (_) {}
+  }
 
   /// 队列里「待确认」的账单。
   static Future<List<AutoBill>> pendingBills() async {

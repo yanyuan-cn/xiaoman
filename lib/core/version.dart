@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '1.7.0';
-const int kAppBuild = 21;
+const String kAppVersion = '1.7.1';
+const int kAppBuild = 22;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,13 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+1.7.1
+· 修复屏幕识别认不出：账单详情页的金额是纯数字（-151.20 / −9.90），现在能认了
+· 修复弹窗连弹：只在页面切换时识别，同一金额 2 分钟内不重复弹
+· 修复「记下」后没有记录：切回小满立刻写库，不用重启
+· 弹窗延迟从 1.6 秒缩短到 0.9 秒
+· 新增自动记账总开关
+
 1.7.0
 · 自动记账改用「屏幕识别」：微信支付不发通知，改成读支付成功页
 · 付款后约 1.6 秒弹出小确认窗，点「记下」直接入账（刻意延迟，避免被判定异常）

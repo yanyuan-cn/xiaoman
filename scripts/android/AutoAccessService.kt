@@ -9,7 +9,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -23,11 +22,13 @@ import android.widget.TextView
 /**
  * 无障碍识别支付结果页。
  *
- * 微信支付成功后**不会发通知**，所以只能读屏。范围限定微信/支付宝，
- * 以及「从微信/支付宝切回调用方 App」后 25 秒内的页面（微信/支付宝 SDK 支付完
- * 会回到商户 App 显示「支付成功」，这种也要能抓到）。
+ * 微信/支付宝的账单详情页里，金额是**独立的一行纯数字**（`-151.20`、`−9.90`），
+ * 既没有 ¥ 也没有「元」，所以不能只靠带货币符号的正则。
  *
- * 弹窗故意延迟 [POPUP_DELAY_MS]，避免支付刚完成就盖一层悬浮窗被风控判定为异常。
+ * 触发策略：
+ *  - 只看 TYPE_WINDOW_STATE_CHANGED（页面切换）。CONTENT_CHANGED 会在滚动/刷新时
+ *    疯狂触发，是「一秒内连弹好几次」的根因。
+ *  - 同一金额 2 分钟内不重复弹；两次弹窗之间至少隔 3 秒。
  */
 class AutoAccessService : AccessibilityService() {
 
@@ -35,13 +36,18 @@ class AutoAccessService : AccessibilityService() {
         private const val WECHAT = "com.tencent.mm"
         private const val ALIPAY = "com.eg.android.AlipayGphone"
 
-        /** 支付完成后等多久再弹窗：一木也是延迟弹，太即时反而容易被判定异常 */
-        private const val POPUP_DELAY_MS = 1600L
+        /** 支付完成后等多久再弹窗：太即时容易被风控判定异常 */
+        private const val POPUP_DELAY_MS = 900L
+
+        /** 两次弹窗的最小间隔，防止页面反复重建导致连弹 */
+        private const val MIN_POPUP_GAP_MS = 3000L
+
+        /** 同一金额多久内不重复识别 */
+        private const val DEDUPE_MS = 120000L
 
         /** 从微信/支付宝切走后，多久内还认为「可能刚付完款」 */
         private const val SDK_RETURN_WINDOW_MS = 25000L
 
-        private const val DEDUPE_MS = 90000L
         private const val AUTO_DISMISS_MS = 12000L
 
         private val SUCCESS_WORDS = arrayOf(
@@ -49,49 +55,61 @@ class AutoAccessService : AccessibilityService() {
             "转账成功", "收款成功", "付款完成"
         )
 
-        private val AMOUNT = Regex(
+        /** 带货币符号/单位的金额 */
+        private val MONEY_AMOUNT = Regex(
             "(?:[¥￥]\\s?(\\d+(?:\\.\\d{1,2})?))" +
-                "|(?:(\\d+(?:\\.\\d{1,2})?)\\s?元)"
+                "|(?:(\\d+(?:\\.\\d{1,2})?)\\s?元)" +
+                "|(?:人民币\\s?(\\d+(?:\\.\\d{1,2})?))"
         )
+
+        /** 整行只有一个金额：可带负号（含全角减号），必须带小数，避免把卡号/单号当金额 */
+        private val BARE_AMOUNT = Regex("^[−\\-]?\\s?(\\d{1,7}\\.\\d{1,2})$")
     }
 
     private val handler = Handler(Looper.getMainLooper())
     private var lastPayAppAt = 0L
+    private var lastPopupAt = 0L
+    private var lastAmountCents = -1
+    private var lastAmountAt = 0L
     private var overlay: View? = null
     private var overlayTimer: Runnable? = null
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val e = event ?: return
-        val pkg = e.packageName?.toString() ?: return
-        if (!PendingStore.switchOn(this, "switch_access")) return
+        if (!PendingStore.switchOn(this, PendingStore.KEY_MASTER)) return
+        if (!PendingStore.switchOn(this, PendingStore.KEY_ACCESS)) return
+        if (e.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
 
+        val pkg = e.packageName?.toString() ?: return
         val now = System.currentTimeMillis()
         if (pkg == WECHAT || pkg == ALIPAY) {
             lastPayAppAt = now
         } else if (now - lastPayAppAt > SDK_RETURN_WINDOW_MS) {
-            // 和微信/支付宝无关的页面，忽略
             return
         }
 
-        if (e.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
-            e.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
-        ) return
-
         val root = rootInActiveWindow ?: return
-        val texts = ArrayList<String>(32)
-        collectText(root, texts, 0)
-        if (texts.isEmpty()) return
+        val lines = ArrayList<String>(48)
+        collectText(root, lines, 0)
+        if (lines.isEmpty()) return
 
-        val joined = TextUtils.join(" ", texts)
-        if (!looksLikeSuccess(joined)) return
+        // 必须真的出现「支付成功/交易成功」这类文案，不再靠拼接假装
+        if (!lines.any { line -> SUCCESS_WORDS.any { line.contains(it) } }) return
 
-        val cents = parseAmountCents(joined) ?: return
-        val merchant = pickMerchant(texts, pkg)
-        val raw = buildRaw(pkg, texts)
+        val cents = pickAmount(lines) ?: return
+        if (cents <= 0) return
 
-        if (PendingStore.hasRecent(this, raw, DEDUPE_MS)) return
+        // 同一金额短时间内重复出现：直接丢弃
+        if (cents == lastAmountCents && now - lastAmountAt < DEDUPE_MS) return
+        // 弹窗太频繁：丢弃
+        if (now - lastPopupAt < MIN_POPUP_GAP_MS) return
 
-        // 延迟弹出，避免支付刚结束就出现悬浮窗
+        val merchant = pickMerchant(lines, pkg)
+        val raw = buildRaw(pkg, lines)
+
+        lastAmountCents = cents
+        lastAmountAt = now
+
         handler.postDelayed({
             offerBill(cents, merchant, raw, now)
         }, POPUP_DELAY_MS)
@@ -100,7 +118,7 @@ class AutoAccessService : AccessibilityService() {
     // ---------------- 识别 ----------------
 
     private fun collectText(node: AccessibilityNodeInfo?, out: MutableList<String>, depth: Int) {
-        if (node == null || depth > 25 || out.size > 80) return
+        if (node == null || depth > 25 || out.size > 60) return
         val t = node.text?.toString()?.trim().orEmpty()
         if (t.isNotEmpty() && t.length <= 60) out.add(t)
         val d = node.contentDescription?.toString()?.trim().orEmpty()
@@ -110,52 +128,78 @@ class AutoAccessService : AccessibilityService() {
         }
     }
 
-    private fun looksLikeSuccess(text: String): Boolean =
-        SUCCESS_WORDS.any { text.contains(it) }
-
-    private fun parseAmountCents(text: String): Int? {
-        for (m in AMOUNT.findAll(text)) {
-            val s = m.groupValues.getOrNull(1)?.takeIf { it.isNotEmpty() }
-                ?: m.groupValues.getOrNull(2)?.takeIf { it.isNotEmpty() }
-                ?: continue
-            val parts = s.split(".")
-            val yuan = parts[0].toLongOrNull() ?: continue
-            val cents = if (parts.size > 1) (parts[1] + "00").substring(0, 2).toInt() else 0
-            val total = yuan * 100 + cents
-            // 过滤明显不是交易的数字（页码、版本号、额度）
-            if (total in 1..100_000_00) return total.toInt()
+    /** 优先整行的纯金额，其次带 ¥ / 元 的写法。 */
+    private fun pickAmount(lines: List<String>): Int? {
+        for (line in lines) {
+            val m = BARE_AMOUNT.find(line) ?: continue
+            val value = m.groupValues[1]
+            val cents = toCents(value) ?: continue
+            if (cents in 1..100000000) return cents
+        }
+        for (line in lines) {
+            val m = MONEY_AMOUNT.find(line) ?: continue
+            val value = m.groupValues.drop(1).firstOrNull { it.isNotEmpty() } ?: continue
+            val cents = toCents(value) ?: continue
+            if (cents in 1..100000000) return cents
         }
         return null
     }
 
-    /** 收款方 / 商户 一般紧跟在「收款方」标签后面，取不到就退回 App 名。 */
-    private fun pickMerchant(texts: List<String>, pkg: String): String? {
-        for (i in texts.indices) {
-            val t = texts[i]
-            if (t.startsWith("收款方") || t.startsWith("商户") || t.startsWith("转账给")) {
-                val inline = t.substringAfter("：").substringAfter(":").trim()
-                if (inline.isNotEmpty() && inline.length <= 24) return inline
-                if (i + 1 < texts.size) {
-                    val next = texts[i + 1].trim()
-                    if (next.isNotEmpty() && next.length <= 24) return next
+    private fun toCents(value: String): Int? {
+        val parts = value.split(".")
+        val yuan = parts[0].replace(",", "").toLongOrNull() ?: return null
+        val frac = if (parts.size > 1) (parts[1] + "00").substring(0, 2).toInt() else 0
+        val total = yuan * 100 + frac
+        if (total <= 0 || total > 100000000) return null
+        return total.toInt()
+    }
+
+    /**
+     * 商户：优先「收款方全称 / 商户全称」的下一行，其次取金额上面那行（通常是品牌名），
+     * 最后退回 App 名。
+     */
+    private fun pickMerchant(lines: List<String>, pkg: String): String? {
+        for (i in lines.indices) {
+            val t = lines[i]
+            if (t.startsWith("收款方") || t.startsWith("商户全称") || t.startsWith("商户名称")) {
+                // 有的机型把值放在同一行冒号后面
+                val inline = t.substringAfter("：", "").trim()
+                if (inline.isNotEmpty() && inline.length in 2..24) return inline
+                if (i + 1 < lines.size) {
+                    val next = lines[i + 1].trim()
+                    if (next.isNotEmpty() && next.length in 2..24 && !next.contains(":")) return next
                 }
             }
         }
-        return if (pkg == WECHAT) "微信支付" else if (pkg == ALIPAY) "支付宝" else null
+        // 金额上一行一般就是品牌名
+        for (i in lines.indices) {
+            if (BARE_AMOUNT.matches(lines[i]) && i > 0) {
+                val prev = lines[i - 1].trim()
+                if (prev.length in 2..24 && !prev.contains("成功")) return prev
+            }
+        }
+        return when (pkg) {
+            WECHAT -> "微信支付"
+            ALIPAY -> "支付宝"
+            else -> null
+        }
     }
 
-    private fun buildRaw(pkg: String, texts: List<String>): String {
-        val app = if (pkg == WECHAT) "微信" else if (pkg == ALIPAY) "支付宝" else pkg
-        val head = texts.take(6).joinToString(" ")
-        return "$app 支付成功 $head"
+    private fun buildRaw(pkg: String, lines: List<String>): String {
+        val app = when (pkg) {
+            WECHAT -> "微信"
+            ALIPAY -> "支付宝"
+            else -> pkg
+        }
+        // 保留换行：Dart 侧按行判断「整行金额」和「金额上一行是商户」
+        return "$app\n" + lines.take(12).joinToString("\n")
     }
 
     // ---------------- 悬浮窗 ----------------
 
     private fun offerBill(cents: Int, merchant: String?, raw: String, at: Long) {
-        if (overlay != null) return // 已经有一个在显示
+        if (overlay != null) return
         if (!Settings.canDrawOverlays(this)) {
-            // 没有悬浮窗权限：直接进待确认队列，不打扰
             PendingStore.push(this, "access", raw, at, "pending")
             return
         }
@@ -248,16 +292,16 @@ class AutoAccessService : AccessibilityService() {
         try {
             wm.addView(card, params)
             overlay = card
-            val dismiss = Runnable { dismissOverlay(auto = true) }
+            lastPopupAt = System.currentTimeMillis()
+            val dismiss = Runnable { dismissOverlay() }
             overlayTimer = dismiss
             handler.postDelayed(dismiss, AUTO_DISMISS_MS.toLong())
         } catch (_: Exception) {
-            // 某些 ROM 会拒绝悬浮窗，退回队列
             PendingStore.push(this, "access", raw, at, "pending")
         }
     }
 
-    private fun dismissOverlay(auto: Boolean = false) {
+    private fun dismissOverlay() {
         val v = overlay ?: return
         overlay = null
         overlayTimer?.let { handler.removeCallbacks(it) }
@@ -267,14 +311,9 @@ class AutoAccessService : AccessibilityService() {
         } catch (_: Exception) {
             // 已经被系统移除
         }
-        if (auto) {
-            // 超时未处理：按忽略处理，避免下次又弹同一条
-            // raw 已经写入队列，这里不再重复写
-        }
     }
 
-    private fun dp(v: Int): Int =
-        (v * resources.displayMetrics.density).toInt()
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private fun formatCents(cents: Int): String {
         val yuan = cents / 100

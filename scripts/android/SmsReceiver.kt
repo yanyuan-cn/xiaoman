@@ -15,7 +15,8 @@ class SmsReceiver : BroadcastReceiver() {
         val ctx = context ?: return
         val action = intent?.action ?: return
         if (action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
-        if (!PendingStore.switchOn(ctx, "switch_sms")) return
+        if (!PendingStore.switchOn(ctx, PendingStore.KEY_MASTER)) return
+        if (!PendingStore.switchOn(ctx, PendingStore.KEY_SMS)) return
 
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
         if (messages.isEmpty()) return

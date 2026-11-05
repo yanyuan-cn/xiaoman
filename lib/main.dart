@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'core/auto_book_runner.dart';
 import 'core/display.dart';
 import 'core/storage.dart';
 import 'core/theme.dart';
@@ -8,6 +9,7 @@ import 'core/theme_mode.dart';
 import 'data/db.dart';
 import 'data/repo.dart';
 import 'features/home/root_page.dart';
+import 'state/data_bus.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +41,19 @@ class _XiaomanAppState extends State<XiaomanApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     ThemeController.instance.addListener(_onThemeChanged);
+    _flushAutoBills();
+  }
+
+  /// 悬浮窗里点过「记下」的账单，在这里真正写库。
+  /// 冷启动 + 每次回到前台都跑一遍。
+  Future<void> _flushAutoBills() async {
+    final int added = await AutoBookRunner.flush(widget.repo);
+    if (added > 0) DataBus.instance.bump();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _flushAutoBills();
   }
 
   @override

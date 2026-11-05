@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/auto_book.dart';
+import '../../core/auto_book_runner.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../data/import/auto_parse.dart';
@@ -23,6 +24,7 @@ class _AutoBookPageState extends State<AutoBookPage> {
   bool _notifSwitch = true;
   bool _smsSwitch = true;
   bool _accessSwitch = true;
+  bool _masterSwitch = true;
   bool _notifAccess = false;
   bool _smsPermission = false;
   bool _accessEnabled = false;
@@ -37,6 +39,11 @@ class _AutoBookPageState extends State<AutoBookPage> {
   }
 
   Future<void> _load() async {
+    // 先把「悬浮窗里点过记下」的账单写库，页面上的数字才准
+    final int flushed = await AutoBookRunner.flush(widget.repo);
+    if (flushed > 0) DataBus.instance.bump();
+
+    final bool m = await AutoBook.switchOn(AutoBook.switchMaster);
     final bool n = await AutoBook.switchOn(AutoBook.switchNotif);
     final bool s = await AutoBook.switchOn(AutoBook.switchSms);
     final bool a = await AutoBook.switchOn(AutoBook.switchAccess);
@@ -47,6 +54,7 @@ class _AutoBookPageState extends State<AutoBookPage> {
     final List<AutoBill> bills = await AutoBook.pendingBills();
     if (!mounted) return;
     setState(() {
+      _masterSwitch = m;
       _notifSwitch = n;
       _smsSwitch = s;
       _accessSwitch = a;
@@ -88,7 +96,9 @@ class _AutoBookPageState extends State<AutoBookPage> {
     await AutoBook.setSwitch(key, on);
     if (!mounted) return;
     setState(() {
-      if (key == AutoBook.switchNotif) {
+      if (key == AutoBook.switchMaster) {
+        _masterSwitch = on;
+      } else if (key == AutoBook.switchNotif) {
         _notifSwitch = on;
       } else if (key == AutoBook.switchSms) {
         _smsSwitch = on;
@@ -122,6 +132,8 @@ class _AutoBookPageState extends State<AutoBookPage> {
               children: <Widget>[
                 _intro(),
                 const SizedBox(height: 16),
+                _masterCard(),
+                const SizedBox(height: 10),
                 _switchCard(
                   icon: Icons.notifications_active_outlined,
                   title: '通知自动记账',
@@ -205,6 +217,38 @@ class _AutoBookPageState extends State<AutoBookPage> {
             '所有解析都在本机完成，不会上传任何内容。',
             style: Xm.text(12, FontWeight.w400,
                 color: Xm.onDarkNote, height: 1.6),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _masterCard() {
+    return XmCard(
+      padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+      child: Row(
+        children: <Widget>[
+          XmIconBlock.icon(Icons.auto_awesome, size: 34, iconSize: 18),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('自动记账总开关', style: Xm.body),
+                const SizedBox(height: 2),
+                Text(
+                  _masterSwitch
+                      ? '已开启：识别到账单会提示'
+                      : '已关闭：三个来源都不再识别',
+                  style: Xm.captionS,
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: _masterSwitch,
+            onChanged: (bool v) => _toggle(AutoBook.switchMaster, v),
+            activeTrackColor: Xm.brand,
           ),
         ],
       ),
