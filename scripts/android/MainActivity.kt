@@ -76,6 +76,20 @@ class MainActivity : FlutterActivity() {
                         PendingStore.setSwitch(this, key, on)
                         result.success(true)
                     }
+                    "accessibilityEnabled" -> result.success(hasAccessibility())
+                    "openAccessibilitySettings" -> {
+                        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        result.success(true)
+                    }
+                    "hasOverlayPermission" -> result.success(Settings.canDrawOverlays(this))
+                    "openOverlaySettings" -> {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:$packageName")
+                        )
+                        startActivity(intent)
+                        result.success(true)
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -118,5 +132,17 @@ class MainActivity : FlutterActivity() {
             "enabled_notification_listeners"
         ) ?: return false
         return flat.contains(packageName)
+    }
+
+    /** 无障碍服务是否已被系统启用（用户可能在系统设置里关掉）。 */
+    private fun hasAccessibility(): Boolean {
+        val am = getSystemService(Context.ACCESSIBILITY_SERVICE)
+            as? android.view.accessibility.AccessibilityManager ?: return false
+        val services = am.getEnabledAccessibilityServiceList(
+            android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK
+        )
+        return services.any {
+            it.resolveInfo?.serviceInfo?.packageName == packageName
+        }
     }
 }

@@ -15,12 +15,27 @@ class AutoBook {
 
   static const String switchNotif = 'switch_notif';
   static const String switchSms = 'switch_sms';
+  static const String switchAccess = 'switch_access';
 
-  /// 读取队列里尚未处理的原文，并解析成候选账单。
+  /// 队列里「待确认」的账单。
   static Future<List<AutoBill>> pendingBills() async {
     final List<_RawItem> items = await _pendingRaw();
     final List<AutoBill> out = <AutoBill>[];
     for (final _RawItem it in items) {
+      if (it.decision != 'pending') continue;
+      final AutoBill? b =
+          parseAutoBill(source: it.source, raw: it.raw, at: it.at);
+      if (b != null) out.add(b);
+    }
+    return out;
+  }
+
+  /// 用户在悬浮窗里点了「记下」的账单，直接入账不用再问。
+  static Future<List<AutoBill>> confirmedBills() async {
+    final List<_RawItem> items = await _pendingRaw();
+    final List<AutoBill> out = <AutoBill>[];
+    for (final _RawItem it in items) {
+      if (it.decision != 'confirmed') continue;
       final AutoBill? b =
           parseAutoBill(source: it.source, raw: it.raw, at: it.at);
       if (b != null) out.add(b);
@@ -108,19 +123,58 @@ class AutoBook {
       await _ch.invokeMethod<bool>('openAppSettings');
     } catch (_) {}
   }
+
+  /// 无障碍服务（读屏识别）是否已启用。
+  static Future<bool> accessibilityEnabled() async {
+    try {
+      return await _ch.invokeMethod<bool>('accessibilityEnabled') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> openAccessibilitySettings() async {
+    try {
+      await _ch.invokeMethod<bool>('openAccessibilitySettings');
+    } catch (_) {}
+  }
+
+  /// 悬浮窗权限（延迟弹窗用；没有就退回「只进队列」）。
+  static Future<bool> hasOverlayPermission() async {
+    try {
+      return await _ch.invokeMethod<bool>('hasOverlayPermission') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> openOverlaySettings() async {
+    try {
+      await _ch.invokeMethod<bool>('openOverlaySettings');
+    } catch (_) {}
+  }
 }
 
 class _RawItem {
-  const _RawItem({required this.source, required this.raw, required this.at});
+  const _RawItem({
+    required this.source,
+    required this.raw,
+    required this.at,
+    required this.decision,
+  });
 
   final String source;
   final String raw;
   final DateTime at;
+
+  /// pending / confirmed / ignored
+  final String decision;
 
   factory _RawItem.fromJson(Map<String, Object?> m) => _RawItem(
         source: (m['source'] as String?) ?? 'notification',
         raw: (m['raw'] as String?) ?? '',
         at: DateTime.fromMillisecondsSinceEpoch(
             ((m['at'] as num?)?.toInt()) ?? 0),
+        decision: (m['decision'] as String?) ?? 'pending',
       );
 }

@@ -37,8 +37,41 @@ class _LedgerPageState extends State<LedgerPage> {
     _checkAutoBills();
   }
 
-  /// 有通知/短信攒下的待确认账单时，提示一句。
+  /// 处理自动记账攒下的账单：
+  /// 1. 悬浮窗里点过「记下」的，直接入账不用再问；
+  /// 2. 其余待确认的，提示一句。
   Future<void> _checkAutoBills() async {
+    final List<AutoBill> confirmed = await AutoBook.confirmedBills();
+    if (confirmed.isNotEmpty && mounted) {
+      final List<Account> accounts = await widget.repo.accounts();
+      if (accounts.isNotEmpty) {
+        final int accId = accounts.first.id;
+        int added = 0;
+        for (final AutoBill b in confirmed) {
+          if (await widget.repo.hasExternalId(b.dedupeKey)) continue;
+          await widget.repo.addTxn(
+            kind: b.kind,
+            amount: b.amountCents,
+            occurredAt: b.at,
+            accountId: accId,
+            note: b.note,
+            merchant: b.merchant,
+            source: 'auto_access',
+            externalId: b.dedupeKey,
+            inBudget: true,
+          );
+          added++;
+        }
+        if (added > 0 && mounted) {
+          await _state.load();
+          DataBus.instance.bump();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('已自动记 $added 笔')),
+          );
+        }
+      }
+    }
+
     final List<AutoBill> bills = await AutoBook.pendingBills();
     if (!mounted || bills.isEmpty) return;
     ScaffoldMessenger.of(context).showSnackBar(

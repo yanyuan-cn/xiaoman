@@ -133,6 +133,36 @@ if ($text -notmatch 'AutoBookService') {
     Write-Host 'Auto bookkeeping components installed.' -ForegroundColor Green
 }
 
+# --- Auto bookkeeping: accessibility (screen reading) + floating window ---
+if ($text -notmatch 'android.permission.SYSTEM_ALERT_WINDOW') {
+    $text = [regex]::Replace(
+        $text,
+        '(<manifest[^>]*>\r?\n)',
+        "`$1    <uses-permission android:name=`"android.permission.SYSTEM_ALERT_WINDOW`" />`r`n",
+        1)
+    Write-Host 'Overlay permission added.' -ForegroundColor Green
+}
+
+if ($text -notmatch 'AutoAccessService') {
+    $access = @"
+        <service
+            android:name=".AutoAccessService"
+            android:exported="true"
+            android:label="@string/auto_access_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/auto_access_config" />
+        </service>
+
+"@
+    $text = $text.Replace('</application>', $access + '    </application>')
+    Write-Host 'Accessibility service installed.' -ForegroundColor Green
+}
+
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($manifest, $text, $utf8NoBom)
 
@@ -144,6 +174,18 @@ if (Test-Path $kotlinSrc) {
     New-Item -ItemType Directory -Force -Path $kotlinDst | Out-Null
     Copy-Item (Join-Path $kotlinSrc '*.kt') $kotlinDst -Force
     Write-Host ("Kotlin sources installed: " + (Get-ChildItem $kotlinDst -Filter *.kt).Count) -ForegroundColor Green
+}
+
+# Accessibility config + string resources live with the Kotlin sources.
+$androidResSrc = Join-Path $root 'scripts\android\res'
+$androidResDst = Join-Path $root 'android\app\src\main\res'
+if (Test-Path $androidResSrc) {
+    Get-ChildItem $androidResSrc -Directory | ForEach-Object {
+        $target = Join-Path $androidResDst $_.Name
+        New-Item -ItemType Directory -Force -Path $target | Out-Null
+        Copy-Item (Join-Path $_.FullName '*') $target -Force -Recurse
+    }
+    Write-Host 'Auto bookkeeping resources installed.' -ForegroundColor Green
 }
 
 # Replace launcher icons (assets/icon/res -> android/app/src/main/res)

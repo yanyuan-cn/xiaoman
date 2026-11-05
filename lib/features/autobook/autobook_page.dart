@@ -22,8 +22,11 @@ class AutoBookPage extends StatefulWidget {
 class _AutoBookPageState extends State<AutoBookPage> {
   bool _notifSwitch = true;
   bool _smsSwitch = true;
+  bool _accessSwitch = true;
   bool _notifAccess = false;
   bool _smsPermission = false;
+  bool _accessEnabled = false;
+  bool _overlayOk = false;
   int _pending = 0;
   bool _loading = true;
 
@@ -36,15 +39,21 @@ class _AutoBookPageState extends State<AutoBookPage> {
   Future<void> _load() async {
     final bool n = await AutoBook.switchOn(AutoBook.switchNotif);
     final bool s = await AutoBook.switchOn(AutoBook.switchSms);
+    final bool a = await AutoBook.switchOn(AutoBook.switchAccess);
     final bool na = await AutoBook.hasNotificationAccess();
     final bool sp = await AutoBook.hasSmsPermission();
+    final bool ae = await AutoBook.accessibilityEnabled();
+    final bool ov = await AutoBook.hasOverlayPermission();
     final List<AutoBill> bills = await AutoBook.pendingBills();
     if (!mounted) return;
     setState(() {
       _notifSwitch = n;
       _smsSwitch = s;
+      _accessSwitch = a;
       _notifAccess = na;
       _smsPermission = sp;
+      _accessEnabled = ae;
+      _overlayOk = ov;
       _pending = bills.length;
       _loading = false;
     });
@@ -81,8 +90,10 @@ class _AutoBookPageState extends State<AutoBookPage> {
     setState(() {
       if (key == AutoBook.switchNotif) {
         _notifSwitch = on;
-      } else {
+      } else if (key == AutoBook.switchSms) {
         _smsSwitch = on;
+      } else {
+        _accessSwitch = on;
       }
     });
     if (on) {
@@ -92,6 +103,9 @@ class _AutoBookPageState extends State<AutoBookPage> {
       }
       if (key == AutoBook.switchSms && !_smsPermission) {
         await AutoBook.requestSmsPermission();
+      }
+      if (key == AutoBook.switchAccess && !_accessEnabled) {
+        await AutoBook.openAccessibilitySettings();
       }
       await _load();
     }
@@ -141,6 +155,25 @@ class _AutoBookPageState extends State<AutoBookPage> {
                   },
                   grantLabel: '去授权',
                 ),
+                const SizedBox(height: 10),
+                _switchCard(
+                  icon: Icons.visibility_outlined,
+                  title: '屏幕识别（微信 / 支付宝）',
+                  subtitle: '微信支付不发通知，只能读支付成功页',
+                  value: _accessSwitch,
+                  granted: _accessEnabled,
+                  grantedText: '无障碍已开启',
+                  deniedText: '需要「无障碍」权限才能读支付页',
+                  onChanged: (bool v) => _toggle(AutoBook.switchAccess, v),
+                  onGrant: () async {
+                    await AutoBook.openAccessibilitySettings();
+                    await Future<void>.delayed(const Duration(seconds: 1));
+                    await _load();
+                  },
+                  grantLabel: '去开启',
+                ),
+                const SizedBox(height: 10),
+                _overlayCard(),
                 const SizedBox(height: 16),
                 _pendingCard(),
                 const SizedBox(height: 16),
@@ -167,8 +200,9 @@ class _AutoBookPageState extends State<AutoBookPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            '收到付款通知或银行短信时，小满会把金额、商户、时间记下来；'
-            '你确认后才真正入账。所有解析都在本机完成，不会上传任何内容。',
+            '微信支付完成后不发通知，所以主要靠「屏幕识别」：支付成功页出现后'
+            '延迟约 1.6 秒弹个小窗，点「记下」就入账。通知和短信作为兜底。'
+            '所有解析都在本机完成，不会上传任何内容。',
             style: Xm.text(12, FontWeight.w400,
                 color: Xm.onDarkNote, height: 1.6),
           ),
@@ -247,6 +281,45 @@ class _AutoBookPageState extends State<AutoBookPage> {
     );
   }
 
+  Widget _overlayCard() {
+    return XmCard(
+      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+      child: Row(
+        children: <Widget>[
+          Icon(
+            _overlayOk ? Icons.check_circle : Icons.error_outline,
+            size: 15,
+            color: _overlayOk ? Xm.brand : Xm.gold,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              _overlayOk
+                  ? '悬浮窗已授权：识别后约 1.6 秒弹出确认窗'
+                  : '悬浮窗未授权：识别到只进队列，打开小满时再确认',
+              style: Xm.text(11.5, FontWeight.w400,
+                  color: _overlayOk ? Xm.ink3 : Xm.ink2),
+            ),
+          ),
+          if (!_overlayOk)
+            TextButton(
+              onPressed: () async {
+                await AutoBook.openOverlaySettings();
+                await Future<void>.delayed(const Duration(seconds: 1));
+                await _load();
+              },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                minimumSize: const Size(0, 30),
+              ),
+              child: Text('去授权',
+                  style: TextStyle(fontSize: 12, color: Xm.brand)),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _pendingCard() {
     return XmCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -288,11 +361,11 @@ class _AutoBookPageState extends State<AutoBookPage> {
         children: <Widget>[
           const Text('怎么开启', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 10),
-          _step('1', '打开「通知自动记账」开关，系统会跳到「通知使用权」列表。'),
-          _step('2', '在列表里找到「小满」，打开右侧开关（不同手机路径略有差异：设置 → 通知 → 通知使用权）。'),
-          _step('3', '回到小满，点「处理」，确认要入账的几条，选择账户即可。'),
-          const SizedBox(height: 6),
-          _step('4', '短信同理：点「去授权」，允许读取短信即可。'),
+          _step('1', '「屏幕识别」是主力：微信支付成功后不发通知，只能读支付页。点「去开启」，在无障碍列表里找到「小满 · 自动记账」打开。'),
+          _step('2', '再点悬浮窗的「去授权」，允许「显示在其他应用上层」，这样付完款才弹确认窗。'),
+          _step('3', '付款完成后约 1.6 秒会弹出小窗（刻意延迟，避免支付刚结束就被判定异常），点「记下」直接入账，「忽略」丢掉。'),
+          _step('4', '「通知自动记账」和「短信自动记账」是兜底：微信/支付宝没弹窗、或者走银行短信时靠它们。'),
+          _step('5', '没给悬浮窗权限也能用：识别到的账单会攒在「待确认账单」里，打开小满时再处理。'),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
@@ -307,9 +380,10 @@ class _AutoBookPageState extends State<AutoBookPage> {
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 Text(
-                  '· 只为「看起来像付款」的通知建候选，验证码、额度提醒会被丢弃\n'
-                  '· 同一条通知重复推送只会入账一次\n'
-                  '· 金额、商户、时间都可以在入账前取消勾选\n'
+                  '· 识别范围：微信、支付宝的支付成功页，以及从它们切回商户 App 后 25 秒内的页面\n'
+                  '· 只认「支付成功/付款成功/交易成功」+ 金额，验证码、额度提醒会被丢弃\n'
+                  '· 同一条内容 90 秒内不会重复弹窗\n'
+                  '· 无障碍服务可能被系统清理，发现不弹了就来这一页看状态、重新开启\n'
                   '· 所有内容只在本机处理，不会上传',
                   style: Xm.text(11.5, FontWeight.w400,
                       color: Xm.ink3, height: 1.7),
