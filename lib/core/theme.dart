@@ -21,6 +21,7 @@ class XmPalette {
     required this.goldL,
     required this.expense,
     required this.income,
+    required this.warn,
   });
 
   final Color bg;
@@ -38,6 +39,7 @@ class XmPalette {
   final Color goldL;
   final Color expense;
   final Color income;
+  final Color warn;
 
   static const XmPalette light = XmPalette(
     bg: Color(0xFFF4F6F2),
@@ -55,6 +57,7 @@ class XmPalette {
     goldL: Color(0xFFF3E9D8),
     expense: Color(0xFFC0392B),
     income: Color(0xFF2F6B4F),
+    warn: Color(0xFFC0563E),
   );
 
   static const XmPalette dark = XmPalette(
@@ -73,6 +76,7 @@ class XmPalette {
     goldL: Color(0xFF2A2318),
     expense: Color(0xFFE4776A),
     income: Color(0xFF6DBB91),
+    warn: Color(0xFFE08A72),
   );
 }
 
@@ -112,6 +116,48 @@ class Xm {
 
   /// 深绿卡上的关键数字（预算剩余、结余）—— 深浅色都用这个金色
   static const Color goldOnDark = Color(0xFFF0D7A6);
+
+  /// 超支 / 负值 / 危险操作。比 [expense] 更暗一点，用在浅底上不刺眼。
+  static Color get warn => _p.warn;
+
+  /// 分类色板：分类首字方块按 id 取色，同一个分类永远同一个颜色。
+  /// 前三个是主色（赭石 / 褐 / 灰蓝），后面是备用。
+  static List<Color> get catPalette => _dark
+      ? const <Color>[
+          Color(0xFFD08C52),
+          Color(0xFFA98063),
+          Color(0xFF6E92AE),
+          Color(0xFF8FA391),
+          Color(0xFFBE86A0),
+          Color(0xFF9AA69F),
+        ]
+      : const <Color>[
+          Color(0xFFC4783E),
+          Color(0xFF8C6A4F),
+          Color(0xFF5A7D9A),
+          Color(0xFF7B8F7C),
+          Color(0xFFA8748A),
+          Color(0xFF8A9690),
+        ];
+
+  /// 按 id 稳定取色。
+  static Color catColor(int? id) {
+    final List<Color> p = catPalette;
+    if (id == null) return p[5];
+    return p[(id - 1) % p.length];
+  }
+
+  /// 「值不值」三档的取色（背景 / 文字）。
+  static const List<Color> worthBg = <Color>[
+    Color(0xFFE5F0E9),
+    Color(0xFFEDEFF0),
+    Color(0xFFFBEBE6),
+  ];
+  static const List<Color> worthInk = <Color>[
+    Color(0xFF1F4C37),
+    Color(0xFF4A5A62),
+    Color(0xFFA8432C),
+  ];
 
   // 深色卡内的文字透明度阶梯（卡片本身在两种模式下都是墨绿）
   static const Color onDarkLabel = Color(0x9EFFFFFF); // .62

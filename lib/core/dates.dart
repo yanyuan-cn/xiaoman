@@ -15,3 +15,14 @@ const List<String> _weekdays = <String>[
 String fmtWeekday(DateTime d) => _weekdays[d.weekday - 1];
 
 String fmtDayKey(DateTime d) => '${d.year}-${two(d.month)}-${two(d.day)}';
+
+/// 列表里的短日期：今天 / 昨天 / 11/03
+String fmtShortDay(DateTime d) {
+  final DateTime now = DateTime.now();
+  final DateTime today = DateTime(now.year, now.month, now.day);
+  final DateTime day = DateTime(d.year, d.month, d.day);
+  final int diff = today.difference(day).inDays;
+  if (diff == 0) return '今天';
+  if (diff == 1) return '昨天';
+  return '${two(d.month)}/${two(d.day)}';
+}

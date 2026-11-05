@@ -165,12 +165,21 @@ class _StatsPageState extends State<StatsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('统计')),
+      backgroundColor: Xm.bg,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+              padding: EdgeInsets.fromLTRB(
+                  16, MediaQuery.paddingOf(context).top + 8, 16, 100),
               children: <Widget>[
+                XmHeader(
+                  padding: EdgeInsets.zero,
+                  kicker: _mode == 'month'
+                      ? '${_month.year}年${_month.month}月'
+                      : '$_year年',
+                  title: '都花在哪了',
+                ),
+                const SizedBox(height: 12),
                 _header(),
                 const SizedBox(height: 12),
                 _modeSwitch(),

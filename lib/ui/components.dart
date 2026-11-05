@@ -886,6 +886,387 @@ class XmMoodBadge extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 页面骨架与「可展开」结构（v2.1）
+//
+// 视觉稿的核心是两层：顶部的「额度卡」和下面的「分类卡」都可以原地展开，
+// 展开的内容属于同一个页面，不跳转。用 [XmExpandable] 统一这个动作。
+// ---------------------------------------------------------------------------
+
+/// 带 kicker 的页面头：一行小字 + 一行大标题 + 右侧圆角方块按钮。
+class XmHeader extends StatelessWidget {
+  const XmHeader({
+    super.key,
+    required this.title,
+    this.kicker,
+    this.trailing,
+    this.padding = const EdgeInsets.fromLTRB(20, 2, 20, 6),
+  });
+
+  final String title;
+  final String? kicker;
+  final Widget? trailing;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: padding,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                if (kicker != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: Text(
+                      kicker!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Xm.text(12, FontWeight.w400,
+                          spacing: 0.4, color: Xm.ink3),
+                    ),
+                  ),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Xm.text(24, FontWeight.w700,
+                      spacing: -0.4, height: 1.15),
+                ),
+              ],
+            ),
+          ),
+          if (trailing != null) ...<Widget>[
+            const SizedBox(width: 10),
+            trailing!,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 头部右侧的圆角方块按钮（视觉稿里的 .avbtn）。
+class XmAvatarButton extends StatelessWidget {
+  const XmAvatarButton({
+    super.key,
+    this.label,
+    this.icon,
+    this.onTap,
+    this.tooltip,
+    this.inverted = false,
+  });
+
+  final String? label;
+  final IconData? icon;
+  final VoidCallback? onTap;
+  final String? tooltip;
+
+  /// true = 放在深绿卡上（半透明白）
+  final bool inverted;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget box = Material(
+      color: inverted
+          ? Colors.white.withValues(alpha: 0.16)
+          : Xm.brandLL,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: Center(
+            child: icon != null
+                ? Icon(icon,
+                    size: 19,
+                    color: inverted ? Colors.white : Xm.brand)
+                : Text(
+                    label ?? '',
+                    style: Xm.text(15, FontWeight.w600,
+                        color: inverted ? Colors.white : Xm.brand),
+                  ),
+          ),
+        ),
+      ),
+    );
+    if (tooltip == null) return box;
+    return Tooltip(message: tooltip!, child: box);
+  }
+}
+
+/// 原地展开 / 收起：高度从 0 到内容高度，同时淡入。
+///
+/// 展开时子组件仍然完整布局（只是被裁掉），所以宽高不会在动画中间跳变，
+/// 这是它比 AnimatedCrossFade 稳的地方。
+class XmExpandable extends StatelessWidget {
+  const XmExpandable({
+    super.key,
+    required this.expanded,
+    required this.child,
+    this.duration = const Duration(milliseconds: 380),
+  });
+
+  final bool expanded;
+  final Widget child;
+  final Duration duration;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool reduced = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (reduced) {
+      return expanded
+          ? child
+          : const SizedBox(width: double.infinity, height: 0);
+    }
+    return AnimatedAlign(
+      alignment: Alignment.topCenter,
+      heightFactor: expanded ? 1 : 0,
+      duration: duration,
+      curve: XmEase.e2,
+      child: ClipRect(
+        child: AnimatedOpacity(
+          opacity: expanded ? 1 : 0,
+          duration: duration,
+          curve: Curves.easeOut,
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// 展开指示箭头：展开时转 180°。
+class XmChevron extends StatelessWidget {
+  const XmChevron({super.key, required this.expanded, this.size = 14, this.color});
+
+  final bool expanded;
+  final double size;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedRotation(
+      turns: expanded ? 0.5 : 0,
+      duration: const Duration(milliseconds: 340),
+      curve: XmEase.e2,
+      child: Icon(
+        Icons.keyboard_arrow_down_rounded,
+        size: size + 3,
+        color: color ?? const Color(0xFFC4CEC7),
+      ),
+    );
+  }
+}
+
+/// 分类首字方块（彩色，带一道斜向高光）。
+class XmColorBlock extends StatelessWidget {
+  const XmColorBlock(
+    this.text, {
+    super.key,
+    required this.color,
+    this.size = 34,
+    this.radius = 12,
+    this.fontSize,
+  });
+
+  final String text;
+  final Color color;
+  final double size;
+  final double radius;
+  final double? fontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: const Alignment(-0.6, -1),
+                  end: const Alignment(0.3, 0.45),
+                  colors: <Color>[
+                    Colors.white.withValues(alpha: 0.28),
+                    Colors.transparent,
+                  ],
+                  stops: const <double>[0, 0.55],
+                ),
+              ),
+            ),
+          ),
+          Center(
+            child: Text(
+              text.isEmpty ? '·' : text.substring(0, 1),
+              style: Xm.text(fontSize ?? 13, FontWeight.w600,
+                  color: Colors.white, height: 1),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 分区标题：左边粗一点，右边灰色的补充说明。
+class XmSect extends StatelessWidget {
+  const XmSect(this.title, {super.key, this.trailing, this.action});
+
+  final String title;
+  final String? trailing;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 8, 22, 5),
+      child: Row(
+        children: <Widget>[
+          Text(title,
+              style: Xm.text(12, FontWeight.w600, spacing: 0.2, color: Xm.ink)),
+          const Spacer(),
+          if (action != null) action!
+          else if (trailing != null)
+            Text(trailing!,
+                style: Xm.text(11.5, FontWeight.w400,
+                    spacing: 0.2, color: Xm.ink3)),
+        ],
+      ),
+    );
+  }
+}
+
+/// 值不值：三档（值得 / 一般 / 后悔）。再点一下取消。
+class XmWorthPicker extends StatelessWidget {
+  const XmWorthPicker({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
+
+  /// 0 未标，1 值得，2 一般，3 后悔（与 [XmMood.code] 一致）。
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  static const List<List<String>> _labels = <List<String>>[
+    <String>['😊', '值得'],
+    <String>['😐', '一般'],
+    <String>['😞', '后悔'],
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        for (int i = 0; i < 3; i++) ...<Widget>[
+          if (i > 0) const SizedBox(width: 8),
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onChanged(value == i + 1 ? 0 : i + 1),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: value == i + 1
+                      ? (Xm.isDark
+                          ? Xm.surface2
+                          : Xm.worthBg[i])
+                      : (Xm.isDark ? Xm.surface2 : const Color(0xFFF2F4F0)),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(
+                    color: value == i + 1
+                        ? (Xm.isDark ? Xm.ink3 : Xm.worthInk[i]).withValues(alpha: 0.35)
+                        : Colors.transparent,
+                    width: 1.4,
+                  ),
+                ),
+                child: Text(
+                  '${_labels[i][0]} ${_labels[i][1]}',
+                  style: Xm.text(
+                    13.5,
+                    FontWeight.w600,
+                    spacing: 0.2,
+                    color: value == i + 1
+                        ? (Xm.isDark ? Xm.ink : Xm.worthInk[i])
+                        : Xm.ink2,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// 场景 chips（当时在干嘛）。单选，再点取消。
+class XmSceneChips extends StatelessWidget {
+  const XmSceneChips({
+    super.key,
+    required this.options,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final List<String> options;
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: <Widget>[
+        for (final String s in options)
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onChanged(value == s ? null : s),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 190),
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+              decoration: BoxDecoration(
+                color: value == s ? Xm.brandLL : (Xm.isDark ? Xm.surface2 : const Color(0xFFF4F6F2)),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(
+                  color: value == s
+                      ? Xm.brand.withValues(alpha: 0.22)
+                      : Colors.transparent,
+                ),
+              ),
+              child: Text(
+                s,
+                style: Xm.text(
+                  12.5,
+                  value == s ? FontWeight.w600 : FontWeight.w500,
+                  color: value == s ? Xm.brand : Xm.ink2,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 
 /// 左滑露出「删除」按钮（不是直接滑走，避免误删）。
 ///

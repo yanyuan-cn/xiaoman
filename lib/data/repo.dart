@@ -753,6 +753,32 @@ class Repo {
     );
   }
 
+  /// 只改「值不值」这一列，不动别的字段（详情页里随手标一下）。
+  Future<void> setTxnMood(int id, int mood) async {
+    await db.update(
+      'txns',
+      <String, Object?>{
+        'mood': mood,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'id = ?',
+      whereArgs: <Object>[id],
+    );
+  }
+
+  /// 只改「当时在干嘛」这一列。
+  Future<void> setTxnWorkState(int id, String? state) async {
+    await db.update(
+      'txns',
+      <String, Object?>{
+        'work_state': state,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'id = ?',
+      whereArgs: <Object>[id],
+    );
+  }
+
   /// 某一年的 12 个月收支（索引 0 = 1 月）
   Future<List<MonthSummary>> monthlySummary(int year) async {
     final List<Map<String, Object?>> rows = await db.rawQuery(

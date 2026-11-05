@@ -149,7 +149,7 @@ class XmExpandRoute<T> extends PageRouteBuilder<T> {
             }
             return XmExpandTransition(
               animation: a,
-              begin: from!,
+              begin: from,
               end: Offset.zero & size,
               child: child,
             );

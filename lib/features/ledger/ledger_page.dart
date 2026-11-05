@@ -15,7 +15,10 @@ import '../import/import_page.dart';
 import '../record/record_page.dart';
 import '../search/search_page.dart';
 
-/// 首页：概览 + 二级分类菜单 + 当日流水 + 底部记账条。
+/// 首页：额度卡（可展开本月账本）+ 超支分类（可展开流水）+ 本月流水。
+///
+/// 两层「原地展开」是这一版的主结构：额度卡的「本月账本」和分类卡里的
+/// 流水都在同一页展开，不跳转。
 class LedgerPage extends StatefulWidget {
   const LedgerPage({super.key, required this.repo});
 
@@ -28,14 +31,14 @@ class LedgerPage extends StatefulWidget {
 class _LedgerPageState extends State<LedgerPage> {
   late final LedgerState _state = LedgerState(widget.repo);
 
-  /// 记账条的矩形——记账面板就是从这里长出来的。
-  final GlobalKey _barKey = GlobalKey();
-
-  /// 每行一个 key，点开时用它算起始矩形。
+  final GlobalKey _fabKey = GlobalKey();
   final Map<int, GlobalKey> _rowKeys = <int, GlobalKey>{};
 
-  /// 二级菜单当前选中的分类（null = 全部）。
-  int? _filterCategory;
+  /// 额度卡里的「本月账本」是否展开
+  bool _bookOpen = false;
+
+  /// 展开着的分类卡 id
+  int? _openCategory;
 
   @override
   void initState() {
@@ -82,26 +85,20 @@ class _LedgerPageState extends State<LedgerPage> {
     if (mounted) await _state.load();
   }
 
-  /// 展开记账面板：从记账条的位置长出来，而不是从屏幕底部滑上来。
+  /// 记账面板从右下角那颗按钮的位置长出来。
   Future<void> _openRecord({String kind = 'expense'}) async {
-    final Rect? from = xmGlobalRect(_barKey);
+    final Rect? from = xmGlobalRect(_fabKey);
     final bool? saved = await showXmExpandSheet<bool>(
       context: context,
       from: from,
       heightFactor: RecordPage.heightFactor,
-      builder: (BuildContext _) => RecordPage(
-        repo: widget.repo,
-        initialKind: kind,
-        initialCategoryId: _filterCategory,
-      ),
+      builder: (BuildContext _) => RecordPage(repo: widget.repo, initialKind: kind),
     );
     if (saved == true) DataBus.instance.bump();
   }
 
   Future<void> _openDetail(Txn t) async {
     final Rect? from = xmGlobalRect(_rowKeys[t.id]);
-    // 只有真的改了（编辑 / 删除）才整表重查，单纯看一眼不动数据，
-    // 免得返回动画还没结束就丢一次全量查询进来。
     final bool? changed = await Navigator.of(context).push<bool>(
       XmExpandRoute<bool>(
         from: from,
@@ -166,36 +163,23 @@ class _LedgerPageState extends State<LedgerPage> {
   // 计算
   // ------------------------------------------------------------------
 
-  /// 当前筛选下的流水。
-  List<Txn> get _visible {
-    final int? cat = _filterCategory;
-    if (cat == null) return _state.txns;
-    return <Txn>[
-      for (final Txn t in _state.txns)
-        if (t.categoryId == cat ||
-            (_state.categoryById[t.categoryId]?.parentId == cat))
-          t,
-    ];
+  MonthSummary get _sum => _state.summary;
+
+  /// 本月还能花多少：有预算按预算，没预算按本月结余。
+  int get _available =>
+      _state.hasBudget ? _state.budgetTotal - _state.budgetSpentTotal : _sum.net;
+
+  /// 本月剩余天数（含今天）。
+  int get _daysLeft {
+    final DateTime now = DateTime.now();
+    final DateTime last = DateTime(now.year, now.month + 1, 0);
+    return last.day - now.day + 1;
   }
 
-  /// 二级菜单：全部 + 本月真正用到的支出一级分类（最多 8 个）。
-  List<MapEntry<int?, String>> get _menu {
-    final Map<int, int> counts = <int, int>{};
-    for (final Txn t in _state.txns) {
-      if (t.isTransfer) continue;
-      final TxnCategory? c =
-          t.categoryId == null ? null : _state.categoryById[t.categoryId];
-      final int id = c?.parentId ?? c?.id ?? 0;
-      if (id == 0) continue;
-      counts[id] = (counts[id] ?? 0) + t.amount;
-    }
-    final List<int> ids = counts.keys.toList()
-      ..sort((int a, int b) => counts[b]!.compareTo(counts[a]!));
-    return <MapEntry<int?, String>>[
-      const MapEntry<int?, String>(null, '全部'),
-      for (final int id in ids.take(8))
-        MapEntry<int?, String>(id, _state.categoryById[id]?.name ?? '其他'),
-    ];
+  int get _dailyQuota {
+    final int d = _daysLeft;
+    if (d <= 0) return 0;
+    return (_available / d).floor();
   }
 
   int get _todayExpense {
@@ -211,6 +195,50 @@ class _LedgerPageState extends State<LedgerPage> {
     return sum;
   }
 
+  /// 昨天花的钱，用来算「昨日结余」。
+  int get _yesterdayExpense {
+    final DateTime y = DateTime.now().subtract(const Duration(days: 1));
+    int sum = 0;
+    for (final Txn t in _state.txns) {
+      if (!t.isExpense) continue;
+      final DateTime d = t.occurredAt;
+      if (d.year == y.year && d.month == y.month && d.day == y.day) sum += t.amount;
+    }
+    return sum;
+  }
+
+  /// 本月支出最高的三个一级分类。
+  List<_CatStat> get _topCats {
+    final Map<int, _CatStat> map = <int, _CatStat>{};
+    for (final Txn t in _state.txns) {
+      if (!t.isExpense) continue;
+      final TxnCategory? c =
+          t.categoryId == null ? null : _state.categoryById[t.categoryId];
+      final int id = c?.parentId ?? c?.id ?? 0;
+      if (id == 0) continue;
+      final _CatStat s = map.putIfAbsent(
+        id,
+        () => _CatStat(
+          id: id,
+          name: _state.categoryById[id]?.name ?? '其他',
+          color: Xm.catColor(id),
+        ),
+      );
+      s.spent += t.amount;
+      s.txns.add(t);
+    }
+    final List<_CatStat> list = map.values.toList()
+      ..sort((_CatStat a, _CatStat b) => b.spent.compareTo(a.spent));
+    return list.take(3).toList(growable: false);
+  }
+
+  /// 某个分类的预算；没有就返回 0。
+  int _catBudget(int id) {
+    if (id == _state.foodCategoryId) return _state.budgetFood;
+    if (id == _state.shopCategoryId) return _state.budgetShop;
+    return 0;
+  }
+
   // ------------------------------------------------------------------
   // 界面
   // ------------------------------------------------------------------
@@ -222,46 +250,25 @@ class _LedgerPageState extends State<LedgerPage> {
       builder: (BuildContext context, Widget? child) {
         return Scaffold(
           backgroundColor: Xm.bg,
-          appBar: AppBar(
-            title: const Text('小满'),
-            actions: <Widget>[
-              XmIconButton(
-                icon: Icons.search_rounded,
-                tooltip: '搜索',
-                onTap: _openSearch,
-              ),
-              const SizedBox(width: 4),
-              PopupMenuButton<String>(
-                tooltip: '更多',
-                icon: const Icon(Icons.more_horiz_rounded, size: 20),
-                onSelected: (String value) {
-                  if (value == 'import') _openImport();
-                  if (value == 'undo') _undoImport();
-                  if (value == 'reload') _state.load();
-                },
-                itemBuilder: (BuildContext ctx) =>
-                    const <PopupMenuEntry<String>>[
-                  PopupMenuItem<String>(
-                    value: 'import',
-                    child: Text('导入账单'),
-                  ),
-                  PopupMenuItem<String>(
-                    value: 'undo',
-                    child: Text('撤销上次导入'),
-                  ),
-                  PopupMenuItem<String>(
-                    value: 'reload',
-                    child: Text('刷新数据'),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 8),
-            ],
-          ),
-          body: Column(
+          body: Stack(
             children: <Widget>[
-              _periodBar(),
-              Expanded(child: _content()),
+              if (_state.loading && _state.txns.isEmpty)
+                const Center(child: CircularProgressIndicator())
+              else
+                RefreshIndicator(
+                  onRefresh: _state.load,
+                  child: ListView(
+                    padding: EdgeInsets.zero,
+                    children: <Widget>[
+                      _header(),
+                      _quotaCard(),
+                      ..._catsSection(),
+                      _recentSection(),
+                      const SizedBox(height: 120),
+                    ],
+                  ),
+                ),
+              Positioned(right: 18, bottom: 94, child: _fab()),
             ],
           ),
         );
@@ -269,508 +276,751 @@ class _LedgerPageState extends State<LedgerPage> {
     );
   }
 
-  Widget _periodBar() {
+  Widget _header() {
+    final DateTime now = DateTime.now();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      child: Row(
+      padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 8, 16, 10),
+      child: XmHeader(
+        padding: EdgeInsets.zero,
+        kicker: '${fmtMonthDay(now)} · ${fmtWeekday(now)}',
+        title: '今天还能花',
+        trailing: XmAvatarButton(
+          label: '满',
+          tooltip: '更多',
+          onTap: _showMore,
+        ),
+      ),
+    );
+  }
+
+  void _showMore() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Xm.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (BuildContext ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const SizedBox(height: 6),
+            ListTile(
+              leading: const Icon(Icons.search_rounded),
+              title: const Text('搜索账单'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _openSearch();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.add_chart_outlined),
+              title: const Text('导入账单'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _openImport();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.pie_chart_outline),
+              title: const Text('预算设置'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _openBudget();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.undo_rounded),
+              title: const Text('撤销上次导入'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _undoImport();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.refresh_rounded),
+              title: const Text('刷新'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _state.load();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------- 额度卡 ----------------
+
+  Widget _quotaCard() {
+    final int used = _state.hasBudget ? _state.budgetSpentTotal : _sum.expense;
+    final int total = _state.hasBudget ? _state.budgetTotal : 0;
+    final double ratio =
+        total <= 0 ? 0 : (used / total).clamp(0.0, 1.0).toDouble();
+    final bool overdue = _available < 0;
+    final int yesterday = _yesterdayExpense;
+    final int perDay = _dailyQuota;
+    final int diff = perDay - yesterday;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(26),
+          gradient: Xm.heroGradient,
+          boxShadow: Xm.heroShadow,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: <Widget>[
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(0.76, -0.36),
+                    radius: 1.2,
+                    colors: <Color>[
+                      Colors.white.withValues(alpha: 0.20),
+                      Colors.transparent,
+                    ],
+                    stops: const <double>[0, 0.62],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: Xm.goldOnDark,
+                          shape: BoxShape.circle,
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: Xm.goldOnDark.withValues(alpha: 0.14),
+                              spreadRadius: 4,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Text(
+                        _state.hasBudget
+                            ? '今日额度 · 剩 $_daysLeft 天'
+                            : '今日还能花 · 剩 $_daysLeft 天',
+                        style: Xm.text(12, FontWeight.w400,
+                            spacing: 0.8, color: Xm.onDarkLabel),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: <Widget>[
+                      Text('¥',
+                          style: Xm.text(22, FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.85))),
+                      const SizedBox(width: 3),
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            formatCents(perDay.abs()),
+                            style: Xm.text(42, FontWeight.w700,
+                                spacing: -2, height: 1, tabular: true,
+                                color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 9),
+                  Row(
+                    children: <Widget>[
+                      Text('今日已花 ¥${formatCents(_todayExpense)}',
+                          style: Xm.text(11.5, FontWeight.w400,
+                              color: Xm.onDarkNote, tabular: true)),
+                      const Spacer(),
+                      Icon(Icons.schedule_rounded,
+                          size: 11, color: Colors.white.withValues(alpha: 0.5)),
+                      const SizedBox(width: 3),
+                      Text(
+                        '昨日结余 ${diff >= 0 ? '+' : '-'}¥${formatCents(diff.abs())}',
+                        style: Xm.text(11.5, FontWeight.w400,
+                            color: Xm.onDarkNote, tabular: true),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  XmProgressBar(
+                    value: ratio,
+                    height: 5,
+                    overdue: overdue,
+                    track: Colors.white.withValues(alpha: 0.16),
+                  ),
+                  const SizedBox(height: 2),
+                  // 「本月账本」——整行可点，原地展开
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => setState(() => _bookOpen = !_bookOpen),
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 7),
+                      padding: const EdgeInsets.only(top: 8),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(color: Xm.onDarkLine, width: 1),
+                        ),
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              _state.hasBudget
+                                  ? '本月账本 · 可支配 ¥${formatCents(_state.budgetTotal)}'
+                                  : '本月账本 · 可支配 ¥${formatCents(_sum.net)}',
+                              style: Xm.text(11.5, FontWeight.w400,
+                                  spacing: 0.4,
+                                  color: Colors.white.withValues(alpha: 0.70),
+                                  tabular: true),
+                            ),
+                          ),
+                          XmChevron(
+                            expanded: _bookOpen,
+                            color: Colors.white.withValues(alpha: 0.55),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  XmExpandable(
+                    expanded: _bookOpen,
+                    child: _monthBook(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _monthBook() {
+    final int income = _sum.income;
+    final int expense = _sum.expense;
+    final int net = income - expense;
+    final int budget = _state.budgetTotal;
+    final int budgetLeft = budget - _state.budgetSpentTotal;
+
+    Widget row(String label, String value, {bool hi = false}) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4.5),
+        child: Row(
+          children: <Widget>[
+            Text(label,
+                style: Xm.text(12.5, FontWeight.w400,
+                    color: Colors.white.withValues(alpha: 0.58))),
+            const Spacer(),
+            Text(value,
+                style: Xm.text(hi ? 14 : 12.5, FontWeight.w600,
+                    spacing: -0.2,
+                    color: hi ? Xm.goldOnDark : Colors.white.withValues(alpha: 0.95),
+                    tabular: true)),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
         children: <Widget>[
-          _circleButton(Icons.chevron_left_rounded, () => _state.shiftMonth(-1)),
+          row('本月收入', '+¥${formatCents(income)}'),
+          row('本月支出', '−¥${formatCents(expense)}'),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Text(
-              fmtMonth(_state.month),
-              style: Xm.text(17, FontWeight.w700, spacing: -0.2),
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Divider(height: 1, thickness: 1, color: Xm.onDarkLine),
+          ),
+          row('可支配', '¥${formatCents(net)}'),
+          if (budget > 0) ...<Widget>[
+            row('本月预算', '¥${formatCents(budget)}'),
+            row('剩余', '¥${formatCents(budgetLeft)}', hi: true),
+          ],
+          row('日均可用（$_daysLeft 天）', '¥${formatCents(_dailyQuota)}'),
+        ],
+      ),
+    );
+  }
+
+  // ---------------- 分类卡（二级菜单） ----------------
+
+  List<Widget> _catsSection() {
+    final List<_CatStat> cats = _topCats;
+    if (cats.isEmpty) return const <Widget>[];
+
+    final bool anyOver =
+        cats.any((_CatStat c) => _catBudget(c.id) > 0 && c.spent > _catBudget(c.id));
+
+    return <Widget>[
+      XmSect(
+        anyOver ? '这几项在超' : '这三项花得最多',
+        trailing: '本月 ${cats.length}/${cats.length}',
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          children: <Widget>[
+            for (final _CatStat c in cats)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _catCard(c),
+              ),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  Widget _catCard(_CatStat c) {
+    final bool open = _openCategory == c.id;
+    final int budget = _catBudget(c.id);
+    final bool over = budget > 0 && c.spent > budget;
+    final int monthExpense = _sum.expense == 0 ? 1 : _sum.expense;
+    final double ratio = budget > 0
+        ? (c.spent / budget).clamp(0.0, 1.0).toDouble()
+        : (c.spent / monthExpense).clamp(0.0, 1.0).toDouble();
+    final double pct = budget > 0
+        ? ((c.spent - budget) / budget * 100)
+        : (c.spent / monthExpense * 100);
+
+    final List<Txn> recent = (<Txn>[...c.txns]
+          ..sort((Txn a, Txn b) => b.occurredAtMs.compareTo(a.occurredAtMs)))
+        .take(3)
+        .toList(growable: false);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      decoration: BoxDecoration(
+        color: Xm.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: open
+            ? <BoxShadow>[
+                BoxShadow(
+                  color: Xm.isDark
+                      ? const Color(0x66000000)
+                      : const Color(0x3812211A),
+                  blurRadius: 22,
+                  spreadRadius: -12,
+                  offset: const Offset(0, 8),
+                ),
+              ]
+            : Xm.cardShadow,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: <Widget>[
+          InkWell(
+            onTap: () => setState(() => _openCategory = open ? null : c.id),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(15, 7, 15, 7),
+              child: Row(
+                children: <Widget>[
+                  XmColorBlock(c.name, color: c.color),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            Flexible(
+                              child: Text(c.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Xm.text(15, FontWeight.w600,
+                                      spacing: -0.1)),
+                            ),
+                            if (budget > 0) ...<Widget>[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 5, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: over
+                                      ? (Xm.isDark
+                                          ? const Color(0xFF3A221F)
+                                          : const Color(0xFFFBEDE9))
+                                      : Xm.brandLL,
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Text(
+                                  '${over ? '超' : '用'} ${pct.round()}%',
+                                  style: Xm.text(10.5, FontWeight.w600,
+                                      color: over ? Xm.warn : Xm.brand,
+                                      height: 1),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        XmProgressBar(
+                          value: ratio,
+                          height: 4,
+                          overdue: over,
+                          track: Xm.isDark
+                              ? Xm.surface2
+                              : const Color(0xFFEDF1ED),
+                          fill: LinearGradient(
+                            colors: <Color>[c.color, c.color],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: <Widget>[
+                      Text('¥${formatCents(c.spent)}',
+                          style: Xm.text(16.5, FontWeight.w700,
+                              spacing: -0.5,
+                              color: over ? Xm.warn : Xm.ink,
+                              tabular: true)),
+                      const SizedBox(height: 3),
+                      Text(
+                        budget > 0
+                            ? '预算 ${formatCents(budget)}'
+                            : '占 ${pct.round()}%',
+                        style: Xm.text(10.5, FontWeight.w400,
+                            spacing: 0.2, color: Xm.ink3),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 2),
+                  XmChevron(expanded: open, size: 12),
+                ],
+              ),
             ),
           ),
-          _circleButton(Icons.chevron_right_rounded, () => _state.shiftMonth(1)),
-          const Spacer(),
-          GestureDetector(
-            onTap: () => _state.backToThisMonth(),
-            child: const XmTag('本月'),
+          XmExpandable(
+            expanded: open,
+            child: Container(
+              width: double.infinity,
+              color: Xm.isDark ? Xm.surface2 : Xm.surface2,
+              padding: const EdgeInsets.only(top: 2, bottom: 6),
+              child: Column(
+                children: <Widget>[
+                  for (int i = 0; i < recent.length; i++)
+                    _miniRow(recent[i], first: i == 0),
+                  if (recent.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Text('这个分类还没有记录',
+                          style: Xm.text(12, FontWeight.w400, color: Xm.ink3)),
+                    ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _circleButton(IconData icon, VoidCallback onTap) {
-    return SizedBox(
-      width: 28,
-      height: 28,
-      child: IconButton(
-        onPressed: onTap,
-        padding: EdgeInsets.zero,
-        iconSize: 18,
-        icon: Icon(icon),
-        style: IconButton.styleFrom(foregroundColor: Xm.ink2),
+  Widget _miniRow(Txn t, {bool first = false}) {
+    final XmMood mood = t.moodEnum;
+    final List<String> bits = <String>[
+      if ((t.workState ?? '').isNotEmpty) t.workState!,
+      if ((t.note ?? '').isNotEmpty) t.note!,
+    ];
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _openDetail(t),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 10, 14, 10),
+          decoration: BoxDecoration(
+            border: first
+                ? null
+                : Border(
+                    top: BorderSide(color: Xm.line, width: 0.6),
+                  ),
+          ),
+          child: Row(
+            children: <Widget>[
+              SizedBox(
+                width: 46,
+                child: Text(fmtShortDay(t.occurredAt),
+                    style: Xm.text(11, FontWeight.w400, color: Xm.ink3)),
+              ),
+              Expanded(
+                child: Text(
+                  bits.isEmpty ? _subCategory(t) : bits.join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Xm.text(13.5, FontWeight.w400, color: Xm.ink2),
+                ),
+              ),
+              Text(formatCents(t.amount),
+                  style: Xm.text(14, FontWeight.w600,
+                      spacing: -0.3, tabular: true)),
+              if (mood.isSet)
+                Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: Text(mood.emoji,
+                      style: const TextStyle(fontSize: 11.5)),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _content() {
-    return Stack(
+  String _subCategory(Txn t) {
+    final TxnCategory? c =
+        t.categoryId == null ? null : _state.categoryById[t.categoryId];
+    if (c == null) return '未分类';
+    return c.parentId == null ? '支出' : c.name;
+  }
+
+  // ---------------- 本月流水 ----------------
+
+  Widget _recentSection() {
+    final List<Txn> list = _state.txns;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        if (_state.loading && _state.txns.isEmpty)
-          const Center(child: CircularProgressIndicator())
+        XmSect('本月流水',
+            trailing: list.isEmpty ? null : '共 ${list.length} 笔'),
+        if (list.isEmpty)
+          _empty()
         else
-          _list(),
-        Positioned(left: 0, right: 0, bottom: 94, child: _recordBar()),
+          ..._groupedList(list),
       ],
     );
   }
 
-  Widget _list() {
-    final Map<int, Account> acc = _state.accountById;
-    final Map<int, TxnCategory> cat = _state.categoryById;
-    final List<Txn> visible = _visible;
+  List<Widget> _groupedList(List<Txn> list) {
+    final List<Widget> out = <Widget>[];
+    String? lastKey;
+    List<Widget> rows = <Widget>[];
+    int i = 0;
 
-    final List<Widget> children = <Widget>[
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: _hero(),
-      ),
-      const SizedBox(height: 16),
-      _menuRow(),
-      const SizedBox(height: 6),
-    ];
-
-    if (visible.isEmpty) {
-      children.add(_empty());
-    } else {
-      String? lastKey;
-      List<Widget> rows = <Widget>[];
-      int i = 0;
-
-      for (final Txn t in visible) {
-        final String key = fmtDayKey(t.occurredAt);
-        if (key != lastKey) {
-          if (rows.isNotEmpty) {
-            children.add(_dayCard(rows));
-            rows = <Widget>[];
-          }
-          lastKey = key;
-          children.add(_dayHeader(t.occurredAt, _dayExpense(t.occurredAt)));
+    for (final Txn t in list) {
+      final String key = fmtDayKey(t.occurredAt);
+      if (key != lastKey) {
+        if (rows.isNotEmpty) {
+          out.add(_dayCard(rows));
+          rows = <Widget>[];
         }
-        final Widget row = XmSwipeDelete(
-          onDelete: () => _onDelete(t),
-          child: _row(t, acc, cat, first: rows.isEmpty),
-        );
-        // 只有前 6 条做入场动画：列表一长，几十个 Timer + AnimationController
-        // 同时启动就是切页掉帧的直接原因。
-        rows.add(i < 6
-            ? XmEntrance(
-                index: i,
-                step: 40,
-                base: 40,
-                offsetY: 8,
-                child: row,
-              )
-            : row);
-        i++;
+        lastKey = key;
+        out.add(_dayHeader(t.occurredAt));
       }
-      if (rows.isNotEmpty) children.add(_dayCard(rows));
+      final Widget row = XmSwipeDelete(
+        onDelete: () => _onDelete(t),
+        child: _row(t, first: rows.isEmpty),
+      );
+      rows.add(i < 5
+          ? XmEntrance(index: i, step: 40, base: 40, offsetY: 8, child: row)
+          : row);
+      i++;
     }
-
-    children.add(const SizedBox(height: 170));
-
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: children,
-    );
-  }
-
-  Widget _menuRow() {
-    final List<MapEntry<int?, String>> menu = _menu;
-    int index = menu.indexWhere(
-        (MapEntry<int?, String> e) => e.key == _filterCategory);
-    if (index < 0) index = 0;
-    return XmScrollTabs(
-      items: <String>[for (final MapEntry<int?, String> e in menu) e.value],
-      index: index,
-      onTap: (int i) => setState(() => _filterCategory = menu[i].key),
-    );
+    if (rows.isNotEmpty) out.add(_dayCard(rows));
+    return out;
   }
 
   Widget _dayCard(List<Widget> rows) => XmCard(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-        radius: 18,
+        radius: 20,
         child: Column(children: rows),
       );
 
-  int _dayExpense(DateTime day) {
-    int sum = 0;
-    final String key = fmtDayKey(day);
-    for (final Txn t in _visible) {
-      if (t.isExpense && t.categoryId != null && fmtDayKey(t.occurredAt) == key) {
-        sum += t.amount;
-      }
-    }
-    return sum;
-  }
-
-  Widget _hero() {
-    final bool showBudget = _state.isCurrentPeriod && !_state.loading;
-    final MonthSummary s = _state.summary;
-
-    return XmHeroCard(
-      margin: const EdgeInsets.only(top: 4),
-      child: Column(
-        children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: <Widget>[
-              _heroStat('支出', formatCents(s.expense), Colors.white,
-                  CrossAxisAlignment.start),
-              _heroStat('收入', formatCents(s.income), Colors.white,
-                  CrossAxisAlignment.center),
-              _heroStat('结余', formatCents(s.net), Xm.goldOnDark,
-                  CrossAxisAlignment.end),
-            ],
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Divider(height: 1, thickness: 1, color: Xm.onDarkLine),
-          ),
-          _budgetSection(showBudget),
-        ],
-      ),
-    );
-  }
-
-  Widget _heroStat(
-      String label, String value, Color color, CrossAxisAlignment align) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: align,
-        children: <Widget>[
-          Text(label, style: Xm.onDarkLabelStyle),
-          const SizedBox(height: 7),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: align == CrossAxisAlignment.start
-                ? Alignment.centerLeft
-                : (align == CrossAxisAlignment.end
-                    ? Alignment.centerRight
-                    : Alignment.center),
-            child: XmAmount(
-              text: value,
-              style: Xm.amountS.copyWith(color: color),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _budgetSection(bool showBudget) {
-    if (!showBudget) return const SizedBox.shrink();
-
-    final LedgerState s = _state;
-    if (!s.hasBudget) {
-      return InkWell(
-        onTap: _openBudget,
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 2),
-          child: Row(
-            children: <Widget>[
-              Text('设置预算，看看每月还能花多少',
-                  style: Xm.text(11.5, FontWeight.w400, color: Xm.onDarkNote)),
-              const Spacer(),
-              const Icon(Icons.chevron_right_rounded,
-                  size: 18, color: Xm.onDarkNote),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final int used = s.budgetSpentTotal;
-    final int total = s.budgetTotal;
-    final int remaining = total - used;
-    final double ratio =
-        total <= 0 ? 0 : (used / total).clamp(0.0, 1.0).toDouble();
-    final bool overdue = remaining < 0;
-
-    return InkWell(
-      onTap: _openBudget,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: <Widget>[
-              Text(
-                '预算 ¥${formatCents(total)}',
-                style: Xm.text(11.5, FontWeight.w400, color: Xm.onDarkNote),
-              ),
-              const SizedBox(width: 10),
-              const Spacer(),
-              Text(
-                overdue
-                    ? '超支 ¥${formatCents(-remaining)}'
-                    : '剩余 ¥${formatCents(remaining)}',
-                style: Xm.amountXS.copyWith(
-                  color: overdue ? const Color(0xFFFF9B90) : Xm.goldOnDark,
-                ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 11),
-            child: XmProgressBar(
-              value: ratio,
-              height: 6,
-              overdue: overdue,
-              track: Colors.white.withValues(alpha: 0.16),
-            ),
-          ),
-          if (s.budgetFood > 0 || s.budgetShop > 0) ...<Widget>[
-            const SizedBox(height: 2),
-            Row(
-              children: <Widget>[
-                if (s.budgetFood > 0)
-                  Expanded(
-                    child: _miniBudget('餐饮', s.budgetSpentFood, s.budgetFood),
-                  ),
-                if (s.budgetFood > 0 && s.budgetShop > 0)
-                  const SizedBox(width: 16),
-                if (s.budgetShop > 0)
-                  Expanded(
-                    child: _miniBudget('购物', s.budgetSpentShop, s.budgetShop),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _miniBudget(String label, int used, int total) {
-    final int remain = total - used;
-    final bool overdue = remain < 0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(label, style: Xm.text(11, FontWeight.w400, color: Xm.onDarkNote)),
-        const SizedBox(height: 3),
-        Row(
-          children: <Widget>[
-            Text('余', style: Xm.text(11, FontWeight.w500, color: Xm.onDarkNote)),
-            const SizedBox(width: 3),
-            Text(
-              '¥${formatCents(remain.abs())}',
-              style: Xm.text(
-                13,
-                FontWeight.w600,
-                color: overdue ? const Color(0xFFFF9B90) : Xm.onDarkStrong,
-                tabular: true,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _dayHeader(DateTime d, int expense) {
+  Widget _dayHeader(DateTime d) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 12, 22, 8),
+      padding: const EdgeInsets.fromLTRB(22, 14, 22, 7),
       child: Row(
         children: <Widget>[
           Text('${fmtMonthDay(d)} · ${fmtWeekday(d)}', style: Xm.caption),
           const Spacer(),
-          if (expense > 0)
-            Text('支出 ¥${formatCents(expense)}', style: Xm.captionS),
+          Text('支出 ¥${formatCents(_dayExpense(d))}', style: Xm.captionS),
         ],
       ),
     );
   }
 
-  Widget _row(Txn t, Map<int, Account> acc, Map<int, TxnCategory> cat,
-      {bool first = false}) {
+  int _dayExpense(DateTime day) {
+    final String key = fmtDayKey(day);
+    int sum = 0;
+    for (final Txn t in _state.txns) {
+      if (t.isExpense && fmtDayKey(t.occurredAt) == key) sum += t.amount;
+    }
+    return sum;
+  }
+
+  Widget _row(Txn t, {bool first = false}) {
     final GlobalKey key = _rowKeys.putIfAbsent(t.id, () => GlobalKey());
-    final TxnCategory? c = t.categoryId == null ? null : cat[t.categoryId];
-    final Account? a = acc[t.accountId];
-    final Account? to = t.toAccountId == null ? null : acc[t.toAccountId];
+    final TxnCategory? c =
+        t.categoryId == null ? null : _state.categoryById[t.categoryId];
+    final Account? a = _state.accountById[t.accountId];
+    final Account? to =
+        t.toAccountId == null ? null : _state.accountById[t.toAccountId];
     final XmMood mood = t.moodEnum;
 
-    String title;
-    String sub;
-    String amount;
-    String glyph;
-    Color amountColor;
+    final String title;
+    final Color iconColor;
+    final String meta;
+    final String amount;
 
     if (t.isTransfer) {
       title = '转账';
-      sub = '${a?.name ?? '未知'} → ${to?.name ?? '未知'}';
-      if ((t.note ?? '').isNotEmpty) sub = '$sub · ${t.note}';
+      iconColor = Xm.catColor(4);
+      meta = '${a?.name ?? '未知'} → ${to?.name ?? '未知'}'
+          '${(t.note ?? '').isNotEmpty ? ' · ${t.note}' : ''}';
       amount = formatCents(t.amount);
-      amountColor = Xm.ink2;
-      glyph = '转';
     } else {
       final TxnCategory? parent =
-          (c == null || c.parentId == null) ? null : cat[c.parentId!];
-      final String catName = parent?.name ?? c?.name ?? '未分类';
-      title = (c == null || parent == null) ? catName : '${parent.name} · ${c.name}';
-      final List<String> parts = <String>[
+          (c == null || c.parentId == null) ? null : _state.categoryById[c.parentId!];
+      title = parent?.name ?? c?.name ?? '未分类';
+      iconColor = Xm.catColor(parent?.id ?? c?.id);
+      final List<String> bits = <String>[
         if (a != null) a.name,
         if ((t.note ?? '').isNotEmpty) t.note!,
       ];
-      sub = parts.isEmpty ? fmtDateTime(t.occurredAt) : parts.join(' · ');
+      meta = bits.isEmpty ? fmtDateTime(t.occurredAt) : bits.join(' · ');
       amount = '${t.isExpense ? '-' : '+'}${formatCents(t.amount)}';
-      amountColor = t.isExpense ? Xm.ink : Xm.income;
-      glyph = catName;
     }
-
-    final bool hasState = (t.workState ?? '').isNotEmpty;
 
     return Material(
       key: key,
       color: Colors.transparent,
       child: InkWell(
         onTap: () => _openDetail(t),
-        child: Column(
-          children: <Widget>[
-            if (!first) const XmDivider(indent: 68),
-            SizedBox(
-              height: 68,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
+        child: Container(
+          decoration: BoxDecoration(
+            border: first
+                ? null
+                : Border(top: BorderSide(color: Xm.line, width: 0.6)),
+          ),
+          padding: const EdgeInsets.fromLTRB(15, 7, 15, 7),
+          child: Row(
+            children: <Widget>[
+              XmColorBlock(title, color: iconColor, size: 36),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    XmIconBlock.char(glyph, size: 40),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Row(
-                            children: <Widget>[
-                              Flexible(
-                                child: Text(
-                                  title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Xm.body,
-                                ),
-                              ),
-                              if (hasState) ...<Widget>[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 1.5),
-                                  decoration: BoxDecoration(
-                                    color: Xm.brandLL,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    t.workState!,
-                                    style: Xm.text(10.5, FontWeight.w600,
-                                        color: Xm.brand),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            sub,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Xm.captionS,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                    Row(
                       children: <Widget>[
-                        Text(
-                          amount,
-                          style: Xm.bodyM.copyWith(color: amountColor),
+                        Flexible(
+                          child: Text(title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Xm.text(15, FontWeight.w600,
+                                  spacing: -0.1)),
                         ),
-                        if (mood.isSet)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              mood.emoji,
-                              style: const TextStyle(fontSize: 11),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: <Widget>[
+                        if ((t.workState ?? '').isNotEmpty) ...<Widget>[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: Xm.brandLL,
+                              borderRadius: BorderRadius.circular(4),
                             ),
+                            child: Text(t.workState!,
+                                style: Xm.text(9.5, FontWeight.w600,
+                                    color: Xm.brand, height: 1.2)),
                           ),
+                          const SizedBox(width: 5),
+                        ],
+                        Flexible(
+                          child: Text(meta,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Xm.text(11.5, FontWeight.w400,
+                                  color: Xm.ink3)),
+                        ),
                       ],
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: <Widget>[
+                  Text(
+                    amount,
+                    style: Xm.text(
+                      16,
+                      FontWeight.w700,
+                      spacing: -0.4,
+                      tabular: true,
+                      color: t.isExpense ? Xm.ink : Xm.income,
+                    ),
+                  ),
+                  if (mood.isSet)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(mood.emoji,
+                          style: const TextStyle(fontSize: 12.5)),
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// 记账条：整条可点，展开成记账面板。
-  Widget _recordBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Semantics(
-        button: true,
-        label: '记一笔',
-        child: GestureDetector(
-          key: _barKey,
-          onTap: _openRecord,
-          child: Container(
-            height: 58,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: Xm.surface,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: Xm.fabShadow,
-            ),
-            child: Row(
-              children: <Widget>[
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    gradient: Xm.buttonGradient,
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: const Icon(Icons.add_rounded,
-                      size: 22, color: Colors.white),
+  Widget _fab() {
+    return Semantics(
+      button: true,
+      label: '记一笔',
+      child: GestureDetector(
+        key: _fabKey,
+        onTap: _openRecord,
+        child: Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            gradient: Xm.buttonGradient,
+            borderRadius: BorderRadius.circular(26),
+            boxShadow: Xm.fabShadow,
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(Icons.add_rounded, size: 18, color: Colors.white),
+              SizedBox(width: 7),
+              Text(
+                '记一笔',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.4,
+                  color: Colors.white,
                 ),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text('记一笔',
-                          style: Xm.text(15, FontWeight.w700, spacing: -0.2)),
-                      const SizedBox(height: 2),
-                      Text(
-                        _todayExpense > 0
-                            ? '今日支出 ¥${formatCents(_todayExpense)}'
-                            : '今天还没有支出',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Xm.captionS,
-                      ),
-                    ],
-                  ),
-                ),
-                XmIconButton(
-                  icon: Icons.keyboard_arrow_up_rounded,
-                  tooltip: '展开记账',
-                  onTap: _openRecord,
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -779,7 +1029,7 @@ class _LedgerPageState extends State<LedgerPage> {
 
   Widget _empty() {
     return Padding(
-      padding: const EdgeInsets.only(top: 54),
+      padding: const EdgeInsets.only(top: 40),
       child: Column(
         children: <Widget>[
           Container(
@@ -789,19 +1039,27 @@ class _LedgerPageState extends State<LedgerPage> {
               color: Xm.brandLL,
               borderRadius: BorderRadius.circular(22),
             ),
-            child: Icon(Icons.receipt_long_outlined,
-                size: 28, color: Xm.brand),
+            child: Icon(Icons.receipt_long_outlined, size: 28, color: Xm.brand),
           ),
           const SizedBox(height: 14),
-          Text(
-            _filterCategory == null ? '这个月还没有记录' : '这个分类下还没有记录',
-            style: TextStyle(fontSize: 14, color: Xm.ink2),
-          ),
+          Text('这个月还没有记录',
+              style: Xm.text(14, FontWeight.w400, color: Xm.ink2)),
           const SizedBox(height: 4),
-          Text('点下面的「记一笔」开始',
-              style: TextStyle(fontSize: 12, color: Xm.ink3)),
+          Text('点右下角「记一笔」开始',
+              style: Xm.text(12, FontWeight.w400, color: Xm.ink3)),
         ],
       ),
     );
   }
+}
+
+/// 首页分类卡的统计快照。
+class _CatStat {
+  _CatStat({required this.id, required this.name, required this.color});
+
+  final int id;
+  final String name;
+  final Color color;
+  int spent = 0;
+  final List<Txn> txns = <Txn>[];
 }

@@ -92,21 +92,6 @@ class _AssetsPageState extends State<AssetsPage> {
 
     return Scaffold(
       backgroundColor: Xm.bg,
-      appBar: AppBar(
-        title: const Text('资产'),
-        actions: <Widget>[
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: XmIconButton(
-              key: _addKey,
-              icon: Icons.add_rounded,
-              tooltip: '新增账户',
-              filled: true,
-              onTap: () => _openAccount(null),
-            ),
-          ),
-        ],
-      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -115,7 +100,22 @@ class _AssetsPageState extends State<AssetsPage> {
                 padding: EdgeInsets.zero,
                 children: <Widget>[
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 2, 16, 18),
+                    padding: EdgeInsets.fromLTRB(
+                        20, MediaQuery.paddingOf(context).top + 8, 16, 12),
+                    child: XmHeader(
+                      padding: EdgeInsets.zero,
+                      kicker: '共 ${assets.length + liabilities.length} 个账户',
+                      title: '我的家底',
+                      trailing: XmAvatarButton(
+                        key: _addKey,
+                        icon: Icons.add_rounded,
+                        tooltip: '新增账户',
+                        onTap: () => _openAccount(null),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
                     child: _netCard(net, totalAsset, totalLiability),
                   ),
                   XmSectionTitle('资产', subtitle: '${assets.length} 个账户'),
@@ -316,18 +316,27 @@ class _AssetsPageState extends State<AssetsPage> {
                                   a.name,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: Xm.body,
+                                  style: Xm.text(15, FontWeight.w600,
+                                      spacing: -0.1),
                                 ),
                               ),
                               if (note != null) ...<Widget>[
-                                const SizedBox(width: 6),
-                                Flexible(
+                                const SizedBox(width: 7),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: Xm.isDark
+                                        ? Xm.goldL
+                                        : const Color(0xFFF3E9D8),
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
                                   child: Text(
                                     note,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: Xm.text(11.5, FontWeight.w400,
-                                        color: Xm.ink3),
+                                    style: Xm.text(10, FontWeight.w600,
+                                        color: Xm.gold, height: 1.2),
                                   ),
                                 ),
                               ],

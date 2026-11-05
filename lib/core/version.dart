@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '2.0.0';
-const int kAppBuild = 24;
+const String kAppVersion = '2.1.0';
+const int kAppBuild = 25;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,16 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+2.1.0
+· 按视觉稿重做主界面：顶部「今日额度」卡，可原地展开本月账本（收入/支出/可支配/剩余/日均）
+· 二级菜单：支出最高的三个分类变成可展开卡片，点开直接看这类最近 3 笔
+· 每笔账可标「值不值」：😊 值得 / 😐 一般 / 😞 后悔，详情页里随手改
+· 每笔账可标「当时在干嘛」：加班 / 应酬 / 情绪 / 日常 / 社交 / 工作
+· 记账面板改成视觉稿的样子：分类横条 + 大金额 + 九宫格键盘
+· 账单详情重做：彩色分类块 + 大金额 + 明细 + 值不值 + 场景，删除按钮移到底部
+· 资产页账户名后面显示金色备注标签
+· 四个页面统一成「小字说明 + 大标题 + 圆角方块按钮」的头部
+
 2.0.0
 · 大焕新：首页加二级分类菜单，点一下只看这一类
 · 记账改成「记账条」：从底部长出来，收起来只有一条

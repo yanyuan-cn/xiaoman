@@ -778,12 +778,21 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('我的')),
+      backgroundColor: Xm.bg,
       body: ListView(
         padding: EdgeInsets.zero,
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+            padding: EdgeInsets.fromLTRB(
+                20, MediaQuery.paddingOf(context).top + 8, 16, 12),
+            child: const XmHeader(
+              padding: EdgeInsets.zero,
+              kicker: '本地优先 · 数据只在手机里',
+              title: '我的',
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
             child: _profileCard(),
           ),
           const XmSectionTitle('数据', group: true),
