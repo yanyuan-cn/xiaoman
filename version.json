@@ -1,8 +1,8 @@
 {
-  "versionCode": 27,
-  "versionName": "2.2.1",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.2.1/app-release.apk",
-  "sha256": "6AD521C6F86ACC13E65E584E2F21E69B06CDA033F7EBAFF2FD5464B297BBE433",
+  "versionCode": 28,
+  "versionName": "2.3.0",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.3.0/app-release.apk",
+  "sha256": "DE961159F8AE003D9FEC3037AA5006768651AED425CD62C9D43BAF19CFF70AA3",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "2.2.1：首页两张卡中间的大片空白收掉、进度条加粗提亮、修复分类卡「已用 -59%」这种负百分比。"
+  "notes": "2.3.0：账户类型可自定义（增删改，改名连带更新账户）；导入支持 Excel .xlsx；删除后的撤销提示延长到 6 秒。"
 }
