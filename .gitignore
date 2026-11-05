@@ -7,7 +7,8 @@ build/
 .idea/
 .vscode/
 _tmp/
-android/
+# 只忽略项目根目录下生成的 android/，不要把 scripts/android/ 里的 Kotlin 源码一起忽略
+/android/
 android/key.properties
 *.keystore
 *.jks
