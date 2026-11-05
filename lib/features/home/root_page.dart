@@ -23,8 +23,29 @@ class RootPage extends StatefulWidget {
   State<RootPage> createState() => _RootPageState();
 }
 
-class _RootPageState extends State<RootPage> {
+class _RootPageState extends State<RootPage>
+    with SingleTickerProviderStateMixin {
   int _index = 0;
+
+  /// 只给「新页面」做一次轻微的淡入 + 上浮。
+  ///
+  /// 之前是四个页面同时做 AnimatedOpacity/AnimatedSlide：旧页一边淡出一边还在
+  /// 绘制，于是出现残影，而且四个页面每帧都在走动画，低端机直接掉帧。
+  late final AnimationController _enter = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+    value: 1,
+  );
+
+  late final Animation<double> _fade = CurvedAnimation(
+    parent: _enter,
+    curve: Curves.easeOut,
+  );
+
+  late final Animation<Offset> _slide = Tween<Offset>(
+    begin: const Offset(0.04, 0),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _enter, curve: XmEase.e2));
 
   static const List<_TabSpec> _tabs = <_TabSpec>[
     _TabSpec('首页', Icons.home_outlined, Icons.home),
@@ -34,9 +55,17 @@ class _RootPageState extends State<RootPage> {
     _TabSpec('我的', Icons.person_outline, Icons.person),
   ];
 
+  @override
+  void dispose() {
+    _enter.dispose();
+    super.dispose();
+  }
+
   void _select(int i) {
     if (i == _index) return;
     setState(() => _index = i);
+    // 切换瞬间把旧页隐藏、新页从 0 开始淡入，不再有两页叠加
+    _enter.forward(from: 0);
   }
 
   @override
@@ -53,21 +82,17 @@ class _RootPageState extends State<RootPage> {
       body: Stack(
         children: <Widget>[
           for (int i = 0; i < pages.length; i++)
-            IgnorePointer(
-              ignoring: i != _index,
-              child: AnimatedOpacity(
-                opacity: i == _index ? 1 : 0,
-                duration: const Duration(milliseconds: 420),
-                curve: XmEase.e2,
-                child: AnimatedSlide(
-                  // 左侧的页停在 -22%，右侧的停在 +22%（§5.4.2）
-                  offset: i == _index
-                      ? Offset.zero
-                      : Offset(i < _index ? -0.22 : 0.22, 0),
-                  duration: const Duration(milliseconds: 420),
-                  curve: XmEase.e2,
-                  // 页面背景不能透明，否则切换会闪白（§7.2 坑 4）
-                  child: ColoredBox(color: Xm.bg, child: pages[i]),
+            // Offstage 保留页面状态，但不布局不绘制：不参与渲染就没有残影和开销
+            Offstage(
+              offstage: i != _index,
+              child: TickerMode(
+                enabled: i == _index,
+                child: FadeTransition(
+                  opacity: i == _index ? _fade : const AlwaysStoppedAnimation<double>(1),
+                  child: SlideTransition(
+                    position: i == _index ? _slide : const AlwaysStoppedAnimation<Offset>(Offset.zero),
+                    child: ColoredBox(color: Xm.bg, child: pages[i]),
+                  ),
                 ),
               ),
             ),

@@ -7,6 +7,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_icon.dart';
+import '../../core/background_update.dart';
 import '../../core/storage.dart';
 import '../../core/theme.dart';
 import '../../core/theme_mode.dart';
@@ -45,9 +46,45 @@ class _ProfilePageState extends State<ProfilePage> {
     _loadStorage();
     _loadSettings();
     _loadIcon();
+    _loadBackgroundUpdate();
   }
 
   String _iconId = AppIcon.d1;
+
+  PendingApk? _pendingApk;
+  bool _autoDownload = true;
+
+  Future<void> _loadBackgroundUpdate() async {
+    final PendingApk? p = await BackgroundUpdate.pending(widget.repo);
+    final bool auto = await BackgroundUpdate.autoDownloadEnabled(widget.repo);
+    if (!mounted) return;
+    setState(() {
+      _pendingApk = p;
+      _autoDownload = auto;
+    });
+  }
+
+  /// 后台更新的入口：已下载就装，没下载就先下。
+  Future<void> _installBackgroundUpdate() async {
+    final PendingApk? p = _pendingApk;
+    if (p == null) return;
+    if (p.downloaded) {
+      final String? err = await BackgroundUpdate.install(p);
+      if (!mounted) return;
+      _toast(err ?? '正在打开安装程序…');
+      return;
+    }
+    _toast('正在后台下载…');
+    await BackgroundUpdate.check(widget.repo);
+    await _loadBackgroundUpdate();
+    if (!mounted) return;
+    final PendingApk? now = _pendingApk;
+    if (now != null && now.downloaded) {
+      _toast('已下载，再点一次安装');
+    } else {
+      _toast('下载失败，请稍后重试');
+    }
+  }
 
   /// 外观模式：跟随系统 / 浅色 / 深色
   Future<void> _pickThemeMode() async {
@@ -774,11 +811,33 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 14),
           const XmSectionTitle('关于', group: true),
           _menuCard(<Widget>[
+            if (_pendingApk != null)
+              _tile(
+                Icons.download_done_rounded,
+                '新版本 ${_pendingApk!.versionName}',
+                _installBackgroundUpdate,
+                first: true,
+                subtitle: _pendingApk!.downloaded
+                    ? '已下载，点击安装'
+                    : '已发现新版本，点击下载',
+              ),
             _tile(
               Icons.system_update_alt,
               _checking ? '正在检查…' : '检查更新',
               _checking ? null : _checkUpdate,
-              first: true,
+              first: _pendingApk == null,
+            ),
+            _switchTile(
+              icon: Icons.cloud_download_outlined,
+              title: '后台自动下载更新',
+              subtitle: _autoDownload ? '发现新版本后自动下好，点一下就能装' : '只提示有新版本，不自动下载',
+              value: _autoDownload,
+              onChanged: (bool v) async {
+                await BackgroundUpdate.setAutoDownload(widget.repo, v);
+                if (!mounted) return;
+                setState(() => _autoDownload = v);
+                if (v) BackgroundUpdate.check(widget.repo);
+              },
             ),
             _tile(
               Icons.cloud_outlined,
@@ -879,6 +938,44 @@ class _ProfilePageState extends State<ProfilePage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: XmCard(child: Column(children: rows)),
+    );
+  }
+
+  Widget _switchTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 12, 6),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, size: 24, color: Xm.brand),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(title,
+                    style: Xm.text(15, FontWeight.w500,
+                        spacing: -0.1, color: Xm.ink)),
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11.5, color: Xm.ink3)),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeTrackColor: Xm.brand,
+          ),
+        ],
+      ),
     );
   }
 

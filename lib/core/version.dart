@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '1.7.1';
-const int kAppBuild = 22;
+const String kAppVersion = '1.7.2';
+const int kAppBuild = 23;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,12 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+1.7.2
+· 修复底部导航切换卡顿与残影：切页只动画新页面，旧页立即隐藏
+· 修复「自动记账」页面打不开（一直转圈）
+· 删除后的撤销提示改小、上移，不再挡住导航栏，3 秒消失
+· 新增后台更新：启动时静默检查并下载，点一下即可安装
+
 1.7.1
 · 修复屏幕识别认不出：账单详情页的金额是纯数字（-151.20 / −9.90），现在能认了
 · 修复弹窗连弹：只在页面切换时识别，同一金额 2 分钟内不重复弹

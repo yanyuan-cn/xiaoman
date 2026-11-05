@@ -6,8 +6,10 @@ import '../data/import/auto_parse.dart';
 
 /// 自动记账的原生桥。
 ///
-/// 原生侧只负责「抓文本」（通知监听 / 短信广播），所有判断都在 Dart 里做，
-/// 这样规则集中、可测试。
+/// 原生侧只负责「抓文本」（无障碍 / 通知 / 短信），所有判断都在 Dart 里做。
+///
+/// 所有调用都加了超时：之前页面卡在转圈，就是因为某个 channel 调用没有返回、
+/// 也没有被 catch，`_load()` 永远走不到 setState。
 class AutoBook {
   AutoBook._();
 
@@ -18,11 +20,14 @@ class AutoBook {
   static const String switchSms = 'switch_sms';
   static const String switchAccess = 'switch_access';
 
-  /// 丢掉已经处理过的队列条目（confirmed / ignored），保留待确认的。
-  static Future<void> pruneHandled() async {
+  static const Duration _timeout = Duration(seconds: 4);
+
+  static Future<T?> _call<T>(String method, [Map<String, Object?>? args]) async {
     try {
-      await _ch.invokeMethod<bool>('pruneHandled');
-    } catch (_) {}
+      return await _ch.invokeMethod<T>(method, args).timeout(_timeout);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// 队列里「待确认」的账单。
@@ -51,20 +56,10 @@ class AutoBook {
     return out;
   }
 
-  static Future<int> pendingCount() async => (await _pendingRaw()).length;
-
-  static Future<void> clearPending() async {
-    try {
-      await _ch.invokeMethod<bool>('clearPending');
-    } catch (_) {
-      // 桌面/测试环境没有原生实现，忽略
-    }
-  }
-
   static Future<List<_RawItem>> _pendingRaw() async {
+    final String? json = await _call<String>('getPending');
+    if (json == null || json.isEmpty) return const <_RawItem>[];
     try {
-      final String? json = await _ch.invokeMethod<String>('getPending');
-      if (json == null || json.isEmpty) return const <_RawItem>[];
       final Object? decoded = jsonDecode(json);
       if (decoded is! List) return const <_RawItem>[];
       return <_RawItem>[
@@ -76,91 +71,48 @@ class AutoBook {
     }
   }
 
+  static Future<void> clearPending() => _call<bool>('clearPending');
+
+  /// 丢掉已经处理过的队列条目（confirmed / ignored），保留待确认的。
+  static Future<void> pruneHandled() => _call<bool>('pruneHandled');
+
   // ---------------- 开关与权限 ----------------
 
   static Future<bool> switchOn(String key) async {
-    try {
-      return await _ch.invokeMethod<bool>('getSwitch', <String, Object?>{
-            'key': key,
-          }) ??
-          true;
-    } catch (_) {
-      return false;
-    }
+    final bool? v = await _call<bool>('getSwitch', <String, Object?>{'key': key});
+    return v ?? true;
   }
 
-  static Future<void> setSwitch(String key, bool on) async {
-    try {
-      await _ch.invokeMethod<bool>('setSwitch', <String, Object?>{
-        'key': key,
-        'on': on,
-      });
-    } catch (_) {}
-  }
+  static Future<void> setSwitch(String key, bool on) =>
+      _call<bool>('setSwitch', <String, Object?>{'key': key, 'on': on});
 
-  static Future<bool> hasNotificationAccess() async {
-    try {
-      return await _ch.invokeMethod<bool>('notificationAccess') ?? false;
-    } catch (_) {
-      return false;
-    }
-  }
+  static Future<bool> hasNotificationAccess() async =>
+      await _call<bool>('notificationAccess') ?? false;
 
-  static Future<void> openNotificationSettings() async {
-    try {
-      await _ch.invokeMethod<bool>('openNotificationSettings');
-    } catch (_) {}
-  }
+  static Future<void> openNotificationSettings() =>
+      _call<bool>('openNotificationSettings');
 
-  static Future<bool> hasSmsPermission() async {
-    try {
-      return await _ch.invokeMethod<bool>('hasSmsPermission') ?? false;
-    } catch (_) {
-      return false;
-    }
-  }
+  static Future<bool> hasSmsPermission() async =>
+      await _call<bool>('hasSmsPermission') ?? false;
 
-  static Future<void> requestSmsPermission() async {
-    try {
-      await _ch.invokeMethod<bool>('requestSmsPermission');
-    } catch (_) {}
-  }
+  static Future<void> requestSmsPermission() =>
+      _call<bool>('requestSmsPermission');
 
-  static Future<void> openAppSettings() async {
-    try {
-      await _ch.invokeMethod<bool>('openAppSettings');
-    } catch (_) {}
-  }
+  static Future<void> openAppSettings() => _call<bool>('openAppSettings');
 
   /// 无障碍服务（读屏识别）是否已启用。
-  static Future<bool> accessibilityEnabled() async {
-    try {
-      return await _ch.invokeMethod<bool>('accessibilityEnabled') ?? false;
-    } catch (_) {
-      return false;
-    }
-  }
+  static Future<bool> accessibilityEnabled() async =>
+      await _call<bool>('accessibilityEnabled') ?? false;
 
-  static Future<void> openAccessibilitySettings() async {
-    try {
-      await _ch.invokeMethod<bool>('openAccessibilitySettings');
-    } catch (_) {}
-  }
+  static Future<void> openAccessibilitySettings() =>
+      _call<bool>('openAccessibilitySettings');
 
   /// 悬浮窗权限（延迟弹窗用；没有就退回「只进队列」）。
-  static Future<bool> hasOverlayPermission() async {
-    try {
-      return await _ch.invokeMethod<bool>('hasOverlayPermission') ?? false;
-    } catch (_) {
-      return false;
-    }
-  }
+  static Future<bool> hasOverlayPermission() async =>
+      await _call<bool>('hasOverlayPermission') ?? false;
 
-  static Future<void> openOverlaySettings() async {
-    try {
-      await _ch.invokeMethod<bool>('openOverlaySettings');
-    } catch (_) {}
-  }
+  static Future<void> openOverlaySettings() =>
+      _call<bool>('openOverlaySettings');
 }
 
 class _RawItem {

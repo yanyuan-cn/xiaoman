@@ -80,7 +80,11 @@ class _LedgerPageState extends State<LedgerPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('已自动记 ${ids.length} 笔定期账单'),
-        duration: const Duration(seconds: 6),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         action: SnackBarAction(
           label: '撤销',
           onPressed: () async {
@@ -137,16 +141,7 @@ class _LedgerPageState extends State<LedgerPage> {
     await _state.delete(t);
     DataBus.instance.bump();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('已删除'),
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: '撤销',
-          onPressed: () => _state.undoDelete(),
-        ),
-      ),
-    );
+    showUndoSnack(context, message: '已删除', onUndo: () => _state.undoDelete());
   }
 
   Future<void> _openImport() async {

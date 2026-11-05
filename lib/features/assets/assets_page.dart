@@ -251,19 +251,14 @@ class _AssetsPageState extends State<AssetsPage> {
     await _load();
     DataBus.instance.bump();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('已删除「${a.name}」'),
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: '撤销',
-          onPressed: () async {
-            await widget.repo.restoreAccount(a.id);
-            await _load();
-            DataBus.instance.bump();
-          },
-        ),
-      ),
+    showUndoSnack(
+      context,
+      message: '已删除「${a.name}」',
+      onUndo: () async {
+        await widget.repo.restoreAccount(a.id);
+        await _load();
+        DataBus.instance.bump();
+      },
     );
   }
 

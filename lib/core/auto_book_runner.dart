@@ -48,6 +48,9 @@ class AutoBookRunner {
         debugPrint('auto book: flushed $added confirmed bills');
       }
       return added;
+    } catch (_) {
+      // 写库失败不能影响页面加载/启动流程
+      return 0;
     } finally {
       _running = false;
     }

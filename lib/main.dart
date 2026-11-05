@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/auto_book_runner.dart';
+import 'core/background_update.dart';
 import 'core/display.dart';
 import 'core/storage.dart';
 import 'core/theme.dart';
@@ -24,6 +25,8 @@ Future<void> main() async {
   }
   await applyHighRefreshRate();
   runApp(XiaomanApp(repo: repo));
+  // 后台静默检查更新：不阻塞启动，失败也无感
+  BackgroundUpdate.check(repo);
 }
 
 class XiaomanApp extends StatefulWidget {

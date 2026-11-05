@@ -39,8 +39,9 @@ class _AutoBookPageState extends State<AutoBookPage> {
   }
 
   Future<void> _load() async {
-    // 先把「悬浮窗里点过记下」的账单写库，页面上的数字才准
-    final int flushed = await AutoBookRunner.flush(widget.repo);
+    try {
+      // 先把「悬浮窗里点过记下」的账单写库，页面上的数字才准
+      final int flushed = await AutoBookRunner.flush(widget.repo);
     if (flushed > 0) DataBus.instance.bump();
 
     final bool m = await AutoBook.switchOn(AutoBook.switchMaster);
@@ -65,6 +66,10 @@ class _AutoBookPageState extends State<AutoBookPage> {
       _pending = bills.length;
       _loading = false;
     });
+    } catch (_) {
+      // 任何一个原生调用卡住/抛错，也不能让页面一直转圈
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _openPending() async {
