@@ -371,10 +371,9 @@ class XmDivider extends StatelessWidget {
   }
 }
 
-/// 右滑露出操作按钮（正面朝右拖，按钮出现在左边）。
+/// 左滑露出操作按钮（和 [XmSwipeDelete] 一样的交互，但按钮内容和颜色自定义）。
 ///
-/// 和 [XmSwipeDelete] 是镜像关系：那个是左滑删除，这个是右滑做「已买 / 取消」
-/// 这种正向操作，所以不用红色做主调。
+/// 用在「想买」上：左滑露出「已买 / 取消」，正向操作所以不用红色做底。
 class XmSwipeActions extends StatefulWidget {
   const XmSwipeActions({
     super.key,
@@ -413,6 +412,8 @@ class _XmSwipeActionsState extends State<XmSwipeActions>
   )..addListener(() => setState(() => _offset = _anim.value));
 
   late Animation<double> _anim = const AlwaysStoppedAnimation<double>(0);
+
+  /// 负数：向左滑开
   double _offset = 0;
 
   double get _width => widget.actions.length * 74.0;
@@ -433,12 +434,12 @@ class _XmSwipeActionsState extends State<XmSwipeActions>
   void _onDragUpdate(DragUpdateDetails d) {
     if (_c.isAnimating) _c.stop();
     setState(() {
-      _offset = (_offset + d.delta.dx).clamp(0.0, _width);
+      _offset = (_offset + d.delta.dx).clamp(-_width, 0.0);
     });
   }
 
   void _onDragEnd(DragEndDetails d) {
-    _snap(_offset > _width * 0.45 ? _width : 0);
+    _snap(_offset < -_width * 0.45 ? -_width : 0);
   }
 
   @override
@@ -448,7 +449,7 @@ class _XmSwipeActionsState extends State<XmSwipeActions>
         children: <Widget>[
           Positioned.fill(
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: Alignment.centerRight,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[

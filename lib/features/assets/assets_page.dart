@@ -40,7 +40,6 @@ class _AssetsPageState extends State<AssetsPage> {
   final Map<int, GlobalKey> _rowKeys = <int, GlobalKey>{};
   final Map<int, GlobalKey> _wishKeys = <int, GlobalKey>{};
   final GlobalKey _addKey = GlobalKey();
-  final GlobalKey _addWishKey = GlobalKey();
 
   @override
   void initState() {
@@ -138,8 +137,8 @@ class _AssetsPageState extends State<AssetsPage> {
                       trailing: XmAvatarButton(
                         key: _addKey,
                         icon: Icons.add_rounded,
-                        tooltip: '新增账户',
-                        onTap: () => _openAccount(null),
+                        tooltip: '新增',
+                        onTap: _showAddMenu,
                       ),
                     ),
                   ),
@@ -175,21 +174,31 @@ class _AssetsPageState extends State<AssetsPage> {
     switch (id) {
       case 'assets':
         return <Widget>[
-          _sectionTitle('资产', '${assets.length} 个账户'),
+          _sectionHeader(
+            icon: Icons.account_balance_wallet_outlined,
+            color: Xm.brand,
+            title: '资产',
+            subtitle: '${assets.length} 个账户',
+          ),
           if (assets.isEmpty)
             _emptyHint('还没有资产账户')
           else
             _accountCard(assets),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
         ];
       case 'liabilities':
         return <Widget>[
-          _sectionTitle('负债', '${liabilities.length} 个账户'),
+          _sectionHeader(
+            icon: Icons.credit_card_off_outlined,
+            color: Xm.warn,
+            title: '负债',
+            subtitle: '${liabilities.length} 个账户',
+          ),
           if (liabilities.isEmpty)
             _emptyHint('还没有负债项目')
           else
             _accountCard(liabilities),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
         ];
       default:
         return <Widget>[
@@ -199,11 +208,47 @@ class _AssetsPageState extends State<AssetsPage> {
     }
   }
 
-  Widget _sectionTitle(String title, String subtitle) {
+  /// 板块标题：图标色块 + 粗标题 + 右侧细线 + 计数，让三段之间界限更清楚。
+  Widget _sectionHeader({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+  }) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onLongPress: _openSectionSort,
-      child: XmSectionTitle(title, subtitle: subtitle),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 6, 20, 8),
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: Xm.isDark ? 0.22 : 0.13),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, size: 15, color: color),
+            ),
+            const SizedBox(width: 9),
+            Text(
+              title,
+              style: Xm.text(15.5, FontWeight.w700, spacing: -0.2),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Container(
+                height: 1,
+                color: color.withValues(alpha: Xm.isDark ? 0.28 : 0.18),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(subtitle,
+                style: Xm.text(11.5, FontWeight.w400, color: Xm.ink3)),
+          ],
+        ),
+      ),
     );
   }
 
@@ -374,26 +419,88 @@ class _AssetsPageState extends State<AssetsPage> {
     );
   }
 
+  /// 右上角的 ＋ 现在管两件事：新增账户 / 添加想买。
+  Future<void> _showAddMenu() async {
+    final String? pick = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Xm.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (BuildContext ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Xm.line,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Xm.brandLL,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(Icons.account_balance_wallet_outlined,
+                    size: 18, color: Xm.brand),
+              ),
+              title: Text('新增账户', style: Xm.text(15, FontWeight.w600)),
+              subtitle: Text('银行卡、电子钱包、现金…',
+                  style: Xm.text(11.5, FontWeight.w400, color: Xm.ink3)),
+              onTap: () => Navigator.of(ctx).pop('account'),
+            ),
+            ListTile(
+              leading: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Xm.goldL,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(Icons.card_giftcard_rounded,
+                    size: 18, color: Xm.gold),
+              ),
+              title: Text('添加想买', style: Xm.text(15, FontWeight.w600)),
+              subtitle: Text('记下想要的东西和价格',
+                  style: Xm.text(11.5, FontWeight.w400, color: Xm.ink3)),
+              onTap: () => Navigator.of(ctx).pop('wish'),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+    if (pick == 'account') {
+      await _openAccount(null);
+    } else if (pick == 'wish') {
+      await _openWish(null);
+    }
+  }
+
   // ---------------- 想买 ----------------
 
   Widget _wishSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        XmSect(
-          '想买',
-          action: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _openWish(null),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Text('+ 添加',
-                  style: Xm.text(11.5, FontWeight.w500, color: Xm.ink3)),
-            ),
-          ),
+        _sectionHeader(
+          icon: Icons.card_giftcard_rounded,
+          color: Xm.gold,
+          title: '想买',
+          subtitle: _wishes.isEmpty ? '空' : '${_wishes.length} 件',
         ),
         if (_wishes.isEmpty)
-          _emptyHint('还没有想买的东西，点「+ 添加」记一个')
+          _emptyHint('还没有想买的东西，点右上角 ＋ 记一个')
         else
           XmCard(
             margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -512,16 +619,20 @@ class _AssetsPageState extends State<AssetsPage> {
       borderRadius: BorderRadius.circular(2),
       child: SizedBox(
         height: 4,
+        width: double.infinity,
         child: Stack(
+          fit: StackFit.expand,
           children: <Widget>[
-            Positioned.fill(
-              child: ColoredBox(
-                color: Xm.isDark ? Xm.surface2 : const Color(0xFFEDF1ED),
-              ),
+            ColoredBox(
+              color: Xm.isDark ? Xm.surface2 : const Color(0xFFEDF1ED),
             ),
-            FractionallySizedBox(
-              widthFactor: frac,
-              child: ColoredBox(color: color),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: frac,
+                heightFactor: 1,
+                child: ColoredBox(color: color),
+              ),
             ),
           ],
         ),
@@ -616,7 +727,7 @@ class _AssetsPageState extends State<AssetsPage> {
 
   Future<void> _openWish(Wish? wish) async {
     final Rect? from = wish == null
-        ? xmGlobalRect(_addWishKey)
+        ? xmGlobalRect(_addKey)
         : xmGlobalRect(_wishKeys[wish.id]);
     final bool? changed = await Navigator.of(context).push<bool>(
       XmExpandRoute<bool>(

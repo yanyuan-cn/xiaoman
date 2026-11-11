@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '2.5.0';
-const int kAppBuild = 31;
+const String kAppVersion = '2.5.1';
+const int kAppBuild = 32;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -30,6 +30,12 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+2.5.1
+· 修复想买的进度条不显示（布局宽度塌成 0），现在显示在「还有 N 天」下面
+· 想买的操作从右滑改成左滑（和资产删除一致，都是往左拉）
+· 资产 / 负债 / 想买 三个板块的标题加了彩色图标块和分隔细线，界限更清楚
+· 右上角的 ＋ 合并成一个入口：可以选「新增账户」或「添加想买」
+
 2.5.0
 · 更新下载大提速：下 3 秒后按速度自动换线路，太慢的直接放弃换下一个
 · 下载卡住 12 秒没数据会自动重连下一条线路，不再干等
