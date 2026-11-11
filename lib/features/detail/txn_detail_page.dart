@@ -30,6 +30,8 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
   late int _mood = widget.txn.mood;
   late String? _scene = widget.txn.workState;
   List<Txn> _sameMerchant = const <Txn>[];
+  int _sameCount = 0;
+  int _sameSum = 0;
 
   @override
   void initState() {
@@ -41,10 +43,17 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
     final List<Account> accounts = await widget.repo.accounts();
     final List<TxnCategory> cats = await widget.repo.categories();
     List<Txn> same = const <Txn>[];
+    int sameCount = 0;
+    int sameSum = 0;
     final String? merchant = widget.txn.merchant;
     if ((merchant ?? '').isNotEmpty) {
+      // 同一个商家的全部流水：既能看总额，也能看最近几笔
       final List<Txn> found =
-          await widget.repo.searchTxns(keyword: merchant, limit: 4);
+          await widget.repo.searchTxns(keyword: merchant, limit: 500);
+      sameCount = found.length;
+      for (final Txn t in found) {
+        sameSum += t.amount;
+      }
       same = <Txn>[
         for (final Txn t in found)
           if (t.id != widget.txn.id) t,
@@ -55,6 +64,8 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
       _accounts = <int, Account>{for (final Account a in accounts) a.id: a};
       _categories = <int, TxnCategory>{for (final TxnCategory c in cats) c.id: c};
       _sameMerchant = same;
+      _sameCount = sameCount;
+      _sameSum = sameSum;
     });
   }
 
@@ -372,10 +383,10 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        const XmSect('同一家店最近'),
+        const XmSect('同一家的花费'),
         Container(
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
           decoration: BoxDecoration(
             color: Xm.surface,
             borderRadius: BorderRadius.circular(Xm.rCard),
@@ -383,37 +394,85 @@ class _TxnDetailPageState extends State<TxnDetailPage> {
           ),
           child: Column(
             children: <Widget>[
-              for (int i = 0; i < _sameMerchant.length; i++)
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 9),
-                  decoration: BoxDecoration(
-                    border: i == 0
-                        ? null
-                        : Border(top: BorderSide(color: Xm.line, width: 0.6)),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      _t.merchant ?? '这个商家',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Xm.text(14, FontWeight.w600, spacing: -0.1),
+                    ),
                   ),
-                  child: Row(
+                  Text('共 $_sameCount 笔',
+                      style: Xm.text(11.5, FontWeight.w400, color: Xm.ink3)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: <Widget>[
+                  Text('合计',
+                      style: Xm.text(11.5, FontWeight.w400, color: Xm.ink3)),
+                  const SizedBox(width: 6),
+                  Text('¥${formatCents(_sameSum)}',
+                      style: Xm.text(20, FontWeight.w700,
+                          spacing: -0.6, tabular: true)),
+                  const Spacer(),
+                  if (_sameCount > 0)
+                    Text(
+                      '单笔均价 ¥${formatCents((_sameSum / _sameCount).round())}',
+                      style:
+                          Xm.text(11.5, FontWeight.w400, color: Xm.ink3),
+                    ),
+                ],
+              ),
+              if (_sameMerchant.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.only(top: 4),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(color: Xm.line, width: 0.6),
+                    ),
+                  ),
+                  child: Column(
                     children: <Widget>[
-                      SizedBox(
-                        width: 60,
-                        child: Text(
-                          fmtShortDay(_sameMerchant[i].occurredAt),
-                          style: Xm.text(11.5, FontWeight.w400,
-                              color: Xm.ink3),
+                      for (final Txn t in _sameMerchant)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            children: <Widget>[
+                              SizedBox(
+                                width: 60,
+                                child: Text(
+                                  fmtShortDay(t.occurredAt),
+                                  style: Xm.text(11.5, FontWeight.w400,
+                                      color: Xm.ink3),
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  (t.note ?? '').isNotEmpty
+                                      ? t.note!
+                                      : _categoryText,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Xm.text(12.5, FontWeight.w400,
+                                      color: Xm.ink2),
+                                ),
+                              ),
+                              Text('¥${formatCents(t.amount)}',
+                                  style: Xm.text(13, FontWeight.w600,
+                                      spacing: -0.2, tabular: true)),
+                            ],
+                          ),
                         ),
-                      ),
-                      Expanded(
-                        child: Text(_categoryText,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Xm.text(12.5, FontWeight.w400,
-                                color: Xm.ink2)),
-                      ),
-                      Text('¥${formatCents(_sameMerchant[i].amount)}',
-                          style: Xm.text(13, FontWeight.w600,
-                              spacing: -0.2, tabular: true)),
                     ],
                   ),
                 ),
+              ],
             ],
           ),
         ),

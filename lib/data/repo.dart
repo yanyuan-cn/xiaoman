@@ -509,6 +509,95 @@ class Repo {
     );
   }
 
+  /// 按给定顺序重排账户（长按拖动排序用）。
+  Future<void> reorderAccounts(List<int> idsInOrder) async {
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    await db.transaction((Transaction txn) async {
+      for (int i = 0; i < idsInOrder.length; i++) {
+        await txn.update(
+          'accounts',
+          <String, Object?>{'sort': i, 'updated_at': now},
+          where: 'id = ?',
+          whereArgs: <Object>[idsInOrder[i]],
+        );
+      }
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // 想买清单
+  // ------------------------------------------------------------------
+
+  Future<List<Wish>> wishes({bool includeBought = false}) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'wishes',
+      where: includeBought ? null : 'bought = 0',
+      orderBy: 'bought ASC, target_at IS NULL, target_at ASC, id DESC',
+    );
+    return rows.map(Wish.fromMap).toList(growable: false);
+  }
+
+  Future<int> addWish({
+    required String name,
+    required int price,
+    DateTime? targetAt,
+    String? note,
+    String? imagePath,
+  }) async {
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    return db.insert('wishes', <String, Object?>{
+      'name': name,
+      'price': price,
+      'target_at': targetAt == null ? null : toUtcMs(targetAt),
+      'note': note,
+      'image_path': imagePath,
+      'bought': 0,
+      'created_at': now,
+      'updated_at': now,
+    });
+  }
+
+  Future<void> updateWish({
+    required int id,
+    required String name,
+    required int price,
+    DateTime? targetAt,
+    String? note,
+    String? imagePath,
+    bool? bought,
+  }) async {
+    await db.update(
+      'wishes',
+      <String, Object?>{
+        'name': name,
+        'price': price,
+        'target_at': targetAt == null ? null : toUtcMs(targetAt),
+        'note': note,
+        'image_path': imagePath,
+        if (bought != null) 'bought': bought ? 1 : 0,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'id = ?',
+      whereArgs: <Object>[id],
+    );
+  }
+
+  Future<void> setWishBought(int id, bool bought) async {
+    await db.update(
+      'wishes',
+      <String, Object?>{
+        'bought': bought ? 1 : 0,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'id = ?',
+      whereArgs: <Object>[id],
+    );
+  }
+
+  Future<void> deleteWish(int id) async {
+    await db.delete('wishes', where: 'id = ?', whereArgs: <Object>[id]);
+  }
+
   /// 某个账户最近的流水（含转入的）
   Future<List<Txn>> txnsForAccount(int accountId, {int limit = 20}) async {
     final List<Map<String, Object?>> rows = await db.query(

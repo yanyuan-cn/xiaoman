@@ -16,3 +16,7 @@ android/key.properties
 # 视觉稿/原型文件（本地参考用，不入库）
 /*.html
 /design/
+
+# 本地调试输出
+/*.log
+/*.err

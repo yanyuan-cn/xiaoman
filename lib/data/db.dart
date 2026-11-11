@@ -2,7 +2,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 const String kDbName = 'xiaoman.db';
-const int kDbVersion = 5;
+const int kDbVersion = 6;
 
 /// 内置的账户类型。`accounts.type` 里存的是**名字**，不是 key，
 /// 这样用户改名时只需要 UPDATE 一次，不用维护一张映射表。
@@ -145,6 +145,19 @@ const List<String> _schema = <String>[
     archived INTEGER NOT NULL DEFAULT 0
   )
   ''',
+  '''
+  CREATE TABLE wishes(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    price INTEGER NOT NULL DEFAULT 0,
+    target_at INTEGER,
+    note TEXT,
+    image_path TEXT,
+    bought INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )
+  ''',
 ];
 
 Future<void> _createSchema(Database db, int version) async {
@@ -266,6 +279,23 @@ Future<void> _upgrade(Database db, int oldVersion, int newVersion) async {
         whereArgs: <Object>[e.key],
       );
     }
+  }
+
+  // v6：想买清单
+  if (oldVersion < 6) {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS wishes(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        price INTEGER NOT NULL DEFAULT 0,
+        target_at INTEGER,
+        note TEXT,
+        image_path TEXT,
+        bought INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    ''');
   }
 }
 const List<List<String>> _seedAccounts = <List<String>>[

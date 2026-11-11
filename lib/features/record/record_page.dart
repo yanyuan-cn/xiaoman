@@ -408,7 +408,8 @@ class _RecordPageState extends State<RecordPage> {
             children: <Widget>[
               for (final Account a in _accounts)
                 XmChoice(
-                  label: a.name,
+                  // 带上备注，同一个银行的两张卡才分得清
+                  label: a.displayName,
                   dense: true,
                   selected: _accountId == a.id,
                   onTap: () => setState(() => _accountId = a.id),
@@ -521,7 +522,7 @@ class _RecordPageState extends State<RecordPage> {
           children: <Widget>[
             for (final Account a in _accounts)
               XmChoice(
-                label: a.name,
+                label: a.displayName,
                 dense: true,
                 selected: _accountId == a.id,
                 onTap: () => setState(() => _accountId = a.id),
@@ -537,7 +538,7 @@ class _RecordPageState extends State<RecordPage> {
           children: <Widget>[
             for (final Account a in _accounts)
               XmChoice(
-                label: a.name,
+                label: a.displayName,
                 dense: true,
                 selected: _toAccountId == a.id,
                 onTap: () => setState(() => _toAccountId = a.id),

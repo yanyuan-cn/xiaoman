@@ -1,6 +1,6 @@
 # 项目交接：小满（xiaoman）
 
-> 最后更新：2026-11-05 · 对应 **v2.3.1+29**
+> 最后更新：2026-11-11 · 对应 **v2.4.0+30**
 >
 > 先读这份，再读 `KNOWN-ISSUES.md`（缺陷与取舍）和 `SETUP.md`（环境与命令）。
 > `PATHS.md` / `ENVIRONMENT.md` / `git-state.txt` 是第一次交接时的环境快照，仅作历史参考。
@@ -44,8 +44,9 @@ lib/
     version.dart            版本号 + 更新日志 + 更新源列表
     budget_period.dart      预算周期
     app_icon.dart           桌面图标切换（MethodChannel 到 MainActivity）
+    reminder.dart           每日记账提醒（MethodChannel 到 Reminder.kt）
   data/
-    db.dart                 建表与迁移（kDbVersion = 5）
+    db.dart                 建表与迁移（kDbVersion = 6）
     models.dart             Txn / Account / TxnCategory / BudgetRule / RecurringRule / XmMood
     repo.dart               连接、CRUD、迁移（对外仍是唯一数据入口）
     repo_backup.dart        备份导出 / 恢复（planBackupRestore 是纯函数，有单测）

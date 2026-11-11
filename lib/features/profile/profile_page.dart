@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_icon.dart';
 import '../../core/background_update.dart';
+import '../../core/reminder.dart';
 import '../../core/storage.dart';
 import '../../core/theme.dart';
 import '../../core/theme_mode.dart';
@@ -42,6 +43,189 @@ class _ProfilePageState extends State<ProfilePage> {
   /// 当前展开着的板块 id（data / look / settings / about）
   final Set<String> _openSections = <String>{};
 
+  ReminderConfig _reminder = const ReminderConfig();
+
+  Future<void> _loadReminder() async {
+    final ReminderConfig c = await DailyReminder.load();
+    if (!mounted) return;
+    setState(() => _reminder = c);
+  }
+
+  Future<void> _saveReminder(ReminderConfig c) async {
+    setState(() => _reminder = c);
+    await DailyReminder.save(c);
+  }
+
+  Future<void> _openReminderSheet() async {
+    final bool notifOn = await DailyReminder.notificationsEnabled();
+    final bool exact = await DailyReminder.canExactAlarm();
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Xm.surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext ctx2, StateSetter setSheet) {
+            final ReminderConfig c = _reminder;
+            Future<void> apply(ReminderConfig next) async {
+              setSheet(() => _reminder = next);
+              await DailyReminder.save(next);
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    XmSheetHeader(
+                      title: '记账提醒',
+                      subtitle: '每天到点提醒你记一笔',
+                      onClose: () => Navigator.of(ctx2).pop(),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: Xm.isDark ? Xm.surface2 : Xm.bg,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: <Widget>[
+                          Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: Text('每天提醒',
+                                    style: Xm.text(14.5, FontWeight.w500)),
+                              ),
+                              Switch(
+                                value: c.enabled,
+                                onChanged: (bool v) => apply(c.copyWith(
+                                    enabled: v)),
+                              ),
+                            ],
+                          ),
+                          const XmDivider(indent: 0, endIndent: 0),
+                          InkWell(
+                            onTap: () async {
+                              final TimeOfDay? picked = await showTimePicker(
+                                context: ctx2,
+                                initialTime: TimeOfDay(
+                                    hour: c.hour, minute: c.minute),
+                              );
+                              if (picked == null) return;
+                              await apply(c.copyWith(
+                                  hour: picked.hour, minute: picked.minute));
+                            },
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                              child: Row(
+                                children: <Widget>[
+                                  Text('提醒时间',
+                                      style:
+                                          Xm.text(14.5, FontWeight.w500)),
+                                  const Spacer(),
+                                  Text(c.label,
+                                      style: Xm.text(14.5, FontWeight.w600,
+                                          tabular: true, color: Xm.brand)),
+                                  const SizedBox(width: 4),
+                                  Icon(Icons.chevron_right_rounded,
+                                      size: 18, color: Xm.ink3),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (!notifOn) ...<Widget>[
+                      const SizedBox(height: 12),
+                      _reminderWarn(
+                        '通知权限没开，提醒发不出来',
+                        '去开启',
+                        () async {
+                          await DailyReminder.requestNotifications();
+                          if (ctx2.mounted) Navigator.of(ctx2).pop();
+                        },
+                      ),
+                    ],
+                    if (!exact) ...<Widget>[
+                      const SizedBox(height: 12),
+                      _reminderWarn(
+                        '没有「精确闹钟」权限，提醒可能会晚几分钟',
+                        '去设置',
+                        () async {
+                          await DailyReminder.openExactAlarmSettings();
+                        },
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 46,
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          await DailyReminder.testNow();
+                          if (ctx2.mounted) {
+                            ScaffoldMessenger.of(ctx2)
+                                .showSnackBar(const SnackBar(
+                              content: Text('已发一条测试通知，看看通知栏'),
+                              duration: Duration(seconds: 2),
+                            ));
+                          }
+                        },
+                        child: const Text('马上发一条试试'),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '提醒是普通通知。小米的「灵动岛 / 焦点通知」要厂商接口，'
+                      '第三方应用拿不到，所以这里做不到常驻显示。',
+                      style: Xm.text(11, FontWeight.w400,
+                          height: 1.5, color: Xm.ink3),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _reminderWarn(String text, String action, VoidCallback onTap) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+      decoration: BoxDecoration(
+        color: Xm.isDark ? const Color(0xFF3A2E20) : const Color(0xFFFDF4E7),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(Icons.info_outline_rounded, size: 16, color: Xm.gold),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text,
+                style: Xm.text(11.5, FontWeight.w400, color: Xm.ink2)),
+          ),
+          TextButton(
+            onPressed: onTap,
+            child: Text(action,
+                style: Xm.text(12, FontWeight.w600, color: Xm.gold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -49,6 +233,7 @@ class _ProfilePageState extends State<ProfilePage> {
     _loadSettings();
     _loadIcon();
     _loadBackgroundUpdate();
+    _loadReminder();
   }
 
   String _iconId = AppIcon.d1;
@@ -841,8 +1026,17 @@ class _ProfilePageState extends State<ProfilePage> {
             id: 'settings',
             icon: Icons.tune_rounded,
             title: '设置',
-            hint: '自动更新 · 更新源',
+            hint: '记账提醒 · 自动更新 · 更新源',
             children: <Widget>[
+              _tile(
+                Icons.notifications_active_outlined,
+                '记账提醒',
+                _openReminderSheet,
+                first: true,
+                subtitle: _reminder.enabled
+                    ? '每天 ${_reminder.label} 提醒你记一笔'
+                    : '已关闭',
+              ),
               _switchTile(
                 icon: Icons.cloud_download_outlined,
                 title: '后台自动下载更新',

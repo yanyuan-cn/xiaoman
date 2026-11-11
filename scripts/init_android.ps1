@@ -99,6 +99,42 @@ if ($text -notmatch 'activity-alias') {
     Write-Host 'Launcher icon switch installed.' -ForegroundColor Green
 }
 
+# --- Daily reminder: notifications + exact alarm + boot receiver ---
+$extraPerms = @(
+    'android.permission.POST_NOTIFICATIONS',
+    'android.permission.SCHEDULE_EXACT_ALARM',
+    'android.permission.RECEIVE_BOOT_COMPLETED'
+)
+foreach ($p in $extraPerms) {
+    if ($text -notmatch [regex]::Escape($p)) {
+        $text = [regex]::Replace(
+            $text,
+            '(<manifest[^>]*>\r?\n)',
+            "`$1    <uses-permission android:name=`"$p`" />`r`n",
+            1)
+        Write-Host ("Permission added: " + $p) -ForegroundColor Green
+    }
+}
+
+if ($text -notmatch 'ReminderReceiver') {
+    $reminder = @"
+        <receiver
+            android:name=".ReminderReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+"@
+    $text = $text.Replace('</application>', $reminder + '    </application>')
+    Write-Host 'Reminder receivers installed.' -ForegroundColor Green
+}
+
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($manifest, $text, $utf8NoBom)
 

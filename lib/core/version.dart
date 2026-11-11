@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '2.3.1';
-const int kAppBuild = 29;
+const String kAppVersion = '2.4.0';
+const int kAppBuild = 30;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -25,6 +25,14 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+2.4.0
+· 资产列表长按账户可以拖动排序（资产和负债分开排）
+· 记账、转账、定期扣款里选账户时，名字后面会带上备注，同家银行两张卡不再分不清
+· 账单详情新增「同一家的花费」：共几笔、合计多少、单笔均价，下面还列最近几笔
+· 资产页新增「想买」：记下想买什么、多少钱、什么时候买，点进去能加图片和备注
+· 设置里新增「记账提醒」：每天定时提醒记一笔，可改时间、可先发一条测试
+· 提醒用的是系统闹钟，重启后会自动补排；没有精确闹钟权限时最多晚几分钟
+
 2.3.1
 · 修复：恢复 2.3.0 之前的备份后账户类型会被清空，现在会自动补回默认类型
 

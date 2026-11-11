@@ -13,6 +13,7 @@ const List<String> kBackupTables = <String>[
   'recurring_rules',
   'import_batches',
   'import_rows',
+  'wishes',
   'settings',
 ];
 

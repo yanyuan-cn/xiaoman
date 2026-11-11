@@ -21,6 +21,12 @@ class Account {
   /// 账户备注，显示在名称后面（如「工资卡，每月 15 号发薪」）。
   final String? note;
 
+  /// 选择账户时显示的名字：有备注就带上，方便区分同一家银行的不同卡。
+  String get displayName {
+    final String n = (note ?? '').trim();
+    return n.isEmpty ? name : '$name · $n';
+  }
+
   factory Account.fromMap(Map<String, Object?> m) => Account(
         id: m['id']! as int,
         name: m['name']! as String,
@@ -176,6 +182,68 @@ enum XmMood {
     }
     return XmMood.none;
   }
+}
+
+/// 想买清单里的一项。
+class Wish {
+  const Wish({
+    required this.id,
+    required this.name,
+    required this.price,
+    this.targetAtMs,
+    this.note,
+    this.imagePath,
+    this.bought = false,
+    this.createdAtMs = 0,
+    this.updatedAtMs = 0,
+  });
+
+  final int id;
+  final String name;
+
+  /// 目标价格（分）
+  final int price;
+
+  /// 预计购买日期（UTC 毫秒），空表示没定
+  final int? targetAtMs;
+
+  final String? note;
+
+  /// 图片文件在应用私有目录里的绝对路径
+  final String? imagePath;
+
+  final bool bought;
+  final int createdAtMs;
+  final int updatedAtMs;
+
+  DateTime? get targetAt => targetAtMs == null
+      ? null
+      : DateTime.fromMillisecondsSinceEpoch(targetAtMs!, isUtc: true).toLocal();
+
+  DateTime get createdAt =>
+      DateTime.fromMillisecondsSinceEpoch(createdAtMs).toLocal();
+
+  /// 距离预计购买日期还有几天；没定日期返回 null。
+  int? get daysLeft {
+    final DateTime? t = targetAt;
+    if (t == null) return null;
+    final DateTime today = DateTime.now();
+    final DateTime a = DateTime(today.year, today.month, today.day);
+    final DateTime b = DateTime(t.year, t.month, t.day);
+    return b.difference(a).inDays;
+  }
+
+  factory Wish.fromMap(Map<String, Object?> m) => Wish(
+        id: m['id']! as int,
+        name: (m['name'] as String?) ?? '',
+        price: (m['price'] as num?)?.toInt() ?? 0,
+        targetAtMs: (m['target_at'] as num?)?.toInt(),
+        note: m['note'] as String?,
+        imagePath: m['image_path'] as String?,
+        bought: ((m['bought'] as num?)?.toInt() ?? 0) == 1,
+        createdAtMs: (m['created_at'] as num?)?.toInt() ?? 0,
+        updatedAtMs: (m['updated_at'] as num?)?.toInt() ?? 0,
+      );
 }
 
 /// 记账时的场景标签（「当时在干嘛」）。存字符串，方便以后加词。

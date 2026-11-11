@@ -435,7 +435,8 @@ class _RuleEditorPageState extends State<_RuleEditorPage> {
             value: assets.any((Account a) => a.id == _fromId) ? _fromId : null,
             items: <DropdownMenuItem<int?>>[
               for (final Account a in assets)
-                DropdownMenuItem<int?>(value: a.id, child: Text(a.name)),
+                DropdownMenuItem<int?>(
+                    value: a.id, child: Text(a.displayName)),
             ],
             onChanged: (int? v) => setState(() => _fromId = v),
           ),
@@ -449,7 +450,8 @@ class _RuleEditorPageState extends State<_RuleEditorPage> {
                 child: Text('不还款，直接记支出'),
               ),
               for (final Account a in liabilities)
-                DropdownMenuItem<int?>(value: a.id, child: Text(a.name)),
+                DropdownMenuItem<int?>(
+                    value: a.id, child: Text(a.displayName)),
             ],
             onChanged: (int? v) => setState(() => _toId = v),
           ),
