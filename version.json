@@ -1,8 +1,8 @@
 {
-  "versionCode": 33,
-  "versionName": "2.5.2",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.5.2/app-release.apk",
-  "sha256": "D3F6F7DDE30300F2444DDD509928FC4F288B74E1C11DCCA2F5358D57708AD603",
+  "versionCode": 34,
+  "versionName": "2.5.3",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.5.3/app-release.apk",
+  "sha256": "64DB848C4AAA1BCAD0BD2DBC2E5AE8A464D36BA6438FA545B243186E63BC44AF",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "2.5.2：想买进度条按「已过天数 ÷ 总天数」填充，越接近预计日期越满；颜色加深为绿/黄/红，刚加的条目也会留一小段颜色。"
+  "notes": "2.5.3：想买进度条跨度最少按 30 天计算，越接近预计日期越满；到期或超过预计日期时直接满格变红。"
 }
