@@ -1,8 +1,8 @@
 {
-  "versionCode": 29,
-  "versionName": "2.3.1",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.3.1/app-release.apk",
-  "sha256": "0557779173730D37240A2235B906EA3FA0E71D96B6A9C554D5D9FB58CD4C6072",
+  "versionCode": 30,
+  "versionName": "2.4.0",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.4.0/app-release.apk",
+  "sha256": "6282BAE3DC33A0E3BFC2883C29E0C05BD6E5F1A1DD301D828C3C15C71EFD040C",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "2.3.1：修复恢复 2.3.0 之前的备份后账户类型会被清空的问题，现在会自动补回默认类型。"
+  "notes": "2.4.0：账户长按拖动排序、选账户显示备注、账单详情新增「同一家的花费」、资产页新增「想买」清单（可加图片）、设置新增每日记账提醒。"
 }
