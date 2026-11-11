@@ -1,8 +1,8 @@
 {
-  "versionCode": 30,
-  "versionName": "2.4.0",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.4.0/app-release.apk",
-  "sha256": "6282BAE3DC33A0E3BFC2883C29E0C05BD6E5F1A1DD301D828C3C15C71EFD040C",
+  "versionCode": 31,
+  "versionName": "2.5.0",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.5.0/app-release.apk",
+  "sha256": "DFFAC2069D632BC3BB193FB484FBCEC98D261C51CB8852E72270F0B7BB7E11DC",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "2.4.0：账户长按拖动排序、选账户显示备注、账单详情新增「同一家的花费」、资产页新增「想买」清单（可加图片）、设置新增每日记账提醒。"
+  "notes": "2.5.0：更新下载测速自动换线路、卡住自动重连、镜像换成实测可用的、可手动填下载地址；资产/负债/想买三板块可长按调顺序；想买加时间进度条与右滑已买/取消（带彩带）。"
 }
