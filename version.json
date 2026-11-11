@@ -1,8 +1,8 @@
 {
-  "versionCode": 32,
-  "versionName": "2.5.1",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.5.1/app-release.apk",
-  "sha256": "87E11C4EB2B72E6CD59B1C64044E7A786B096C194059A939A58550A245E8154C",
+  "versionCode": 33,
+  "versionName": "2.5.2",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.5.2/app-release.apk",
+  "sha256": "D3F6F7DDE30300F2444DDD509928FC4F288B74E1C11DCCA2F5358D57708AD603",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "2.5.1：修复想买进度条不显示、操作改成左滑、板块标题加彩色图标块与分隔线、右上角＋合并为「新增账户 / 添加想买」。"
+  "notes": "2.5.2：想买进度条按「已过天数 ÷ 总天数」填充，越接近预计日期越满；颜色加深为绿/黄/红，刚加的条目也会留一小段颜色。"
 }
