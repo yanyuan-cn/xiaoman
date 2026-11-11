@@ -599,39 +599,54 @@ class _AssetsPageState extends State<AssetsPage> {
   }
 
   /// 离预计购买日期还有多久：充裕绿、快到了黄、到点或超期红。
+  /// 离预计购买日期还有多久：充裕绿、快到了黄、到点或超期红。
+  ///
+  /// 长度 = 已过天数 ÷ 总天数。刚加进来的条目几乎是 0%，为了能看见颜色，
+  /// 至少留 4% 的宽度（视觉上一个色点，不改变"越接近越满"的语义）。
   Widget _wishProgress(Wish w) {
     final DateTime created = w.createdAt;
     final DateTime target = w.targetAt!;
     final double totalSec = target.difference(created).inSeconds.toDouble();
     final double usedSec =
         DateTime.now().difference(created).inSeconds.toDouble();
-    final double frac =
+    final double raw =
         totalSec <= 0 ? 1.0 : (usedSec / totalSec).clamp(0.0, 1.0);
+    final double frac = raw < 0.04 ? 0.04 : raw;
     final int? days = w.daysLeft;
 
+    // 绿 / 黄 / 红，颜色要够饱和才看得见
     final Color color = (days != null && days <= 0)
-        ? Xm.warn
+        ? const Color(0xFFD2503A)
         : (days != null && days <= 7)
-            ? const Color(0xFFD9A64B)
-            : const Color(0xFF3E9A6E);
+            ? const Color(0xFFE0A63C)
+            : const Color(0xFF2FA36B);
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(2),
+      borderRadius: BorderRadius.circular(3),
       child: SizedBox(
-        height: 4,
+        height: 5,
         width: double.infinity,
         child: Stack(
           fit: StackFit.expand,
           children: <Widget>[
             ColoredBox(
-              color: Xm.isDark ? Xm.surface2 : const Color(0xFFEDF1ED),
+              color: Xm.isDark ? Xm.surface2 : const Color(0xFFE9EEE9),
             ),
             Align(
               alignment: Alignment.centerLeft,
               child: FractionallySizedBox(
                 widthFactor: frac,
                 heightFactor: 1,
-                child: ColoredBox(color: color),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: <Color>[
+                        color.withValues(alpha: 0.85),
+                        color,
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ],

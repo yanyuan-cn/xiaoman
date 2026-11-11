@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '2.5.1';
-const int kAppBuild = 32;
+const String kAppVersion = '2.5.2';
+const int kAppBuild = 33;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -30,6 +30,10 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+2.5.2
+· 想买进度条：长度改成「已过天数 ÷ 总天数」，越接近预计日期跑得越满
+· 颜色加深：充裕绿、7 天内黄、到期或超期红，刚加的条目也会留一小段颜色
+
 2.5.1
 · 修复想买的进度条不显示（布局宽度塌成 0），现在显示在「还有 N 天」下面
 · 想买的操作从右滑改成左滑（和资产删除一致，都是往左拉）
