@@ -26,6 +26,16 @@ class UpdateInfo {
 
   /// 发布页 / 下载页
   final String pageUrl;
+
+  /// 换一组下载地址（用户手动指定时用），其余字段不变。
+  UpdateInfo withApkUrls(List<String> urls) => UpdateInfo(
+        versionCode: versionCode,
+        versionName: versionName,
+        notes: notes,
+        apkUrls: urls,
+        sha256: sha256,
+        pageUrl: pageUrl,
+      );
 }
 
 class UpdateException implements Exception {

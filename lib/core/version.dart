@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '2.4.0';
-const int kAppBuild = 30;
+const String kAppVersion = '2.5.0';
+const int kAppBuild = 31;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -13,7 +13,12 @@ const List<String> kUpdateManifestUrls = <String>[
 ];
 
 /// APK 下载地址的镜像前缀，配置里的地址会依次套用
+///
+/// 顺序有讲究：两个实测能通、速度也够的公共代理放最前面，GitHub 直连放后面，
+/// 最后是经常挂掉的 ghproxy.net。下载器会在 3 秒后按速度自动淘汰慢的。
 const List<String> kApkMirrorPrefixes = <String>[
+  'https://gh-proxy.com/',
+  'https://ghfast.top/',
   '',
   'https://ghproxy.net/',
 ];
@@ -25,6 +30,16 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+2.5.0
+· 更新下载大提速：下 3 秒后按速度自动换线路，太慢的直接放弃换下一个
+· 下载卡住 12 秒没数据会自动重连下一条线路，不再干等
+· 下载线路换成实测可用的两个镜像（gh-proxy / ghfast），GitHub 直连退居次选
+· 校验改成边下边算，不再卡在 100% 不动
+· 设置 → 更新源：可以手动填一个下载地址，慢了仍会自动换回内置线路
+· 资产 / 负债 / 想买三个板块，长按标题就能调整先后顺序
+· 想买条目加了时间进度条：充裕绿、一周内黄、到期或超期红
+· 想买条目右滑可以「已买」或「取消」；标记已买会撒彩带，6 秒内可撤销
+
 2.4.0
 · 资产列表长按账户可以拖动排序（资产和负债分开排）
 · 记账、转账、定期扣款里选账户时，名字后面会带上备注，同家银行两张卡不再分不清

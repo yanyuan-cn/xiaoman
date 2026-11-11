@@ -39,6 +39,7 @@ class _ProfilePageState extends State<ProfilePage> {
   int _dbBytes = 0;
   Map<String, int> _stats = const <String, int>{};
   String? _updateUrl;
+  String? _apkUrl;
 
   /// 当前展开着的板块 id（data / look / settings / about）
   final Set<String> _openSections = <String>{};
@@ -441,37 +442,62 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _loadSettings() async {
     final String? url = await widget.repo.getSetting('update_url');
+    final String? apk = await widget.repo.getSetting(kApkUrlOverride);
     if (!mounted) return;
-    setState(() => _updateUrl = url);
+    setState(() {
+      _updateUrl = url;
+      _apkUrl = apk;
+    });
   }
 
+  /// 更新源 + 下载地址：两个都留空就用内置的多地址自动尝试。
   Future<void> _editUpdateUrl() async {
-    final TextEditingController ctl =
+    final TextEditingController src =
         TextEditingController(text: _updateUrl ?? '');
-    final String? result = await showDialog<String>(
+    final TextEditingController apk = TextEditingController(text: _apkUrl ?? '');
+    final bool? result = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('更新源'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              '填 version.json 的地址。留空则使用内置的多个地址自动尝试。',
-              style: TextStyle(fontSize: 12, color: Xm.ink3, height: 1.5),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: ctl,
-              maxLines: 3,
-              minLines: 1,
-              decoration: const InputDecoration(
-                hintText: 'https://example.com/version.json',
-                border: OutlineInputBorder(),
-                isDense: true,
+        title: const Text('更新源与下载地址'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                '更新源：version.json 的地址。留空则自动尝试内置的多个地址。',
+                style: TextStyle(fontSize: 12, color: Xm.ink3, height: 1.5),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              TextField(
+                controller: src,
+                maxLines: 2,
+                minLines: 1,
+                decoration: const InputDecoration(
+                  hintText: 'https://example.com/version.json',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '下载地址：只想换下载线路时填这里。填了会排在所有地址前面，'
+                '慢了也会自动换回内置线路。',
+                style: TextStyle(fontSize: 12, color: Xm.ink3, height: 1.5),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: apk,
+                maxLines: 2,
+                minLines: 1,
+                decoration: const InputDecoration(
+                  hintText: 'https://gh-proxy.com/https://github.com/…/app-release.apk',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+            ],
+          ),
         ),
         actions: <Widget>[
           TextButton(
@@ -479,18 +505,24 @@ class _ProfilePageState extends State<ProfilePage> {
             child: const Text('取消'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(ctl.text.trim()),
+            onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('保存'),
           ),
         ],
       ),
     );
-    ctl.dispose();
-    if (result == null) return;
-    await widget.repo.setSetting('update_url', result);
+    final String srcText = src.text.trim();
+    final String apkText = apk.text.trim();
+    src.dispose();
+    apk.dispose();
+    if (result != true) return;
+    await widget.repo.setSetting('update_url', srcText);
+    await widget.repo.setSetting(kApkUrlOverride, apkText);
     await _loadSettings();
     if (!mounted) return;
-    _toast(result.isEmpty ? '已恢复默认更新源' : '已保存自定义更新源');
+    _toast(apkText.isNotEmpty
+        ? '已保存自定义下载地址'
+        : (srcText.isEmpty ? '已恢复默认更新源' : '已保存自定义更新源'));
   }
 
   Future<void> _loadStorage() async {
@@ -820,8 +852,17 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _checkUpdate() async {
     setState(() => _checking = true);
     try {
-      final UpdateInfo info =
+      UpdateInfo info =
           await UpdateService.fetchLatest(overrideUrl: _updateUrl);
+      // 手动指定的下载地址排最前面
+      final String manual = (_apkUrl ?? '').trim();
+      if (manual.isNotEmpty) {
+        info = info.withApkUrls(<String>[
+          manual,
+          for (final String u in info.apkUrls)
+            if (u != manual) u,
+        ]);
+      }
       if (!mounted) return;
       setState(() => _checking = false);
       if (info.versionCode > kAppBuild) {
@@ -906,6 +947,12 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final String path = await ApkUpdater.download(
         info,
+        onSwitch: (String url, int index) {
+          if (index > 0) {
+            status.value = '线路 ${index + 1} 太慢，正在换下一个…';
+            progress.value = 0;
+          }
+        },
         onProgress: (int received, int? total) {
           if (total != null && total > 0) {
             progress.value = received / total;

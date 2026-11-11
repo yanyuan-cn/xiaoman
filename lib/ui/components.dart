@@ -371,6 +371,134 @@ class XmDivider extends StatelessWidget {
   }
 }
 
+/// 右滑露出操作按钮（正面朝右拖，按钮出现在左边）。
+///
+/// 和 [XmSwipeDelete] 是镜像关系：那个是左滑删除，这个是右滑做「已买 / 取消」
+/// 这种正向操作，所以不用红色做主调。
+class XmSwipeActions extends StatefulWidget {
+  const XmSwipeActions({
+    super.key,
+    required this.child,
+    required this.actions,
+  });
+
+  final Widget child;
+
+  /// 从左到右排列
+  final List<XmSwipeAction> actions;
+
+  @override
+  State<XmSwipeActions> createState() => _XmSwipeActionsState();
+}
+
+class XmSwipeAction {
+  const XmSwipeAction({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+}
+
+class _XmSwipeActionsState extends State<XmSwipeActions>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 200),
+  )..addListener(() => setState(() => _offset = _anim.value));
+
+  late Animation<double> _anim = const AlwaysStoppedAnimation<double>(0);
+  double _offset = 0;
+
+  double get _width => widget.actions.length * 74.0;
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  void _snap(double to) {
+    _anim = Tween<double>(begin: _offset, end: to).animate(
+      CurvedAnimation(parent: _c, curve: Curves.easeOutCubic),
+    );
+    _c.forward(from: 0);
+  }
+
+  void _onDragUpdate(DragUpdateDetails d) {
+    if (_c.isAnimating) _c.stop();
+    setState(() {
+      _offset = (_offset + d.delta.dx).clamp(0.0, _width);
+    });
+  }
+
+  void _onDragEnd(DragEndDetails d) {
+    _snap(_offset > _width * 0.45 ? _width : 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  for (final XmSwipeAction a in widget.actions)
+                    SizedBox(
+                      width: 74,
+                      child: Material(
+                        color: a.color,
+                        child: InkWell(
+                          onTap: () {
+                            _snap(0);
+                            a.onTap();
+                          },
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: <Widget>[
+                              Icon(a.icon, size: 20, color: Colors.white),
+                              const SizedBox(height: 2),
+                              Text(
+                                a.label,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          GestureDetector(
+            onHorizontalDragUpdate: _onDragUpdate,
+            onHorizontalDragEnd: _onDragEnd,
+            onTap: _offset == 0 ? null : () => _snap(0),
+            child: Transform.translate(
+              offset: Offset(_offset, 0),
+              child: ColoredBox(color: Xm.surface, child: widget.child),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 撤销提示：浮动、缩小、上移，避免挡住底部导航；6 秒后自动消失。
 void showUndoSnack(
   BuildContext context, {

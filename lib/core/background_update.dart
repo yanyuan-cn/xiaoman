@@ -7,6 +7,9 @@ import '../data/repo.dart';
 import '../data/update_service.dart';
 import 'version.dart';
 
+/// 用户在设置里手动填的下载地址（优先用）
+const String kApkUrlOverride = 'apk_url';
+
 /// 后台更新：启动时静默检查，有新版本就下载好，用户点一下即可安装。
 ///
 /// 只做「下载 + 记住路径」，安装必须由用户点头（系统安装器的要求）。
@@ -26,10 +29,20 @@ class BackgroundUpdate {
   /// 背景检查：有新版本就下好放缓存里。永不抛异常，失败就当无事发生。
   static Future<bool> check(Repo repo) async {
     try {
-      final UpdateInfo info = await UpdateService.fetchLatest();
+      UpdateInfo info = await UpdateService.fetchLatest();
       if (info.versionCode <= kAppBuild) {
         await repo.setSetting(_kRecord, '');
         return false;
+      }
+
+      // 手动指定的下载地址排最前面
+      final String manual = (await repo.getSetting(kApkUrlOverride) ?? '').trim();
+      if (manual.isNotEmpty) {
+        info = info.withApkUrls(<String>[
+          manual,
+          for (final String u in info.apkUrls)
+            if (u != manual) u,
+        ]);
       }
 
       // 已经下好同一个版本就不重复下载
