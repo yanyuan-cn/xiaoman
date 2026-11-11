@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '2.5.2';
-const int kAppBuild = 33;
+const String kAppVersion = '2.5.3';
+const int kAppBuild = 34;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -30,6 +30,10 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+2.5.3
+· 想买进度条现在真的会随时间变长：跨度最少按 30 天算，今天加、今天到期的条目也不会永远是空条
+· 到期或超过预计日期时直接满格变红
+
 2.5.2
 · 想买进度条：长度改成「已过天数 ÷ 总天数」，越接近预计日期跑得越满
 · 颜色加深：充裕绿、7 天内黄、到期或超期红，刚加的条目也会留一小段颜色

@@ -601,17 +601,24 @@ class _AssetsPageState extends State<AssetsPage> {
   /// 离预计购买日期还有多久：充裕绿、快到了黄、到点或超期红。
   /// 离预计购买日期还有多久：充裕绿、快到了黄、到点或超期红。
   ///
-  /// 长度 = 已过天数 ÷ 总天数。刚加进来的条目几乎是 0%，为了能看见颜色，
-  /// 至少留 4% 的宽度（视觉上一个色点，不改变"越接近越满"的语义）。
+  /// 长度 = 已过时间 ÷ 总跨度，越接近预计日期越满。
+  /// 总跨度取「加入那天 → 预计日期」，但**最少按 30 天算**：
+  /// 否则今天加、今天到期这种条目窗口只有几小时，条子永远是空的，
+  /// 看起来就像"没动过"。
   Widget _wishProgress(Wish w) {
-    final DateTime created = w.createdAt;
+    const Duration minSpan = Duration(days: 30);
     final DateTime target = w.targetAt!;
-    final double totalSec = target.difference(created).inSeconds.toDouble();
-    final double usedSec =
-        DateTime.now().difference(created).inSeconds.toDouble();
-    final double raw =
-        totalSec <= 0 ? 1.0 : (usedSec / totalSec).clamp(0.0, 1.0);
-    final double frac = raw < 0.04 ? 0.04 : raw;
+    final DateTime created = w.createdAt;
+
+    Duration span = target.difference(created);
+    if (span < minSpan) span = minSpan;
+    final DateTime start = target.subtract(span);
+
+    final double raw = DateTime.now().difference(start).inSeconds /
+        (span.inSeconds == 0 ? 1 : span.inSeconds);
+    final double clamped = raw.clamp(0.0, 1.0);
+    // 刚加进来时几乎是 0%，留一小段颜色，免得看起来像坏了
+    final double frac = clamped < 0.04 ? 0.04 : clamped;
     final int? days = w.daysLeft;
 
     // 绿 / 黄 / 红，颜色要够饱和才看得见
