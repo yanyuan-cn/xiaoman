@@ -286,16 +286,129 @@ class _LedgerPageState extends State<LedgerPage> {
 
   Widget _header() {
     final DateTime now = DateTime.now();
+    final bool isThisMonth = _state.month.year == now.year &&
+        _state.month.month == now.month;
+    // 看的是别的月份时，顶部显示那个月，点一下能换
+    final String kicker = isThisMonth
+        ? '${fmtMonthDay(now)} · ${fmtWeekday(now)}'
+        : fmtMonth(_state.month);
+
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 8, 16, 10),
+      padding: EdgeInsets.fromLTRB(
+          20, MediaQuery.paddingOf(context).top + 8, 16, 10),
       child: XmHeader(
         padding: EdgeInsets.zero,
-        kicker: '${fmtMonthDay(now)} · ${fmtWeekday(now)}',
+        kicker: kicker,
+        onKickerTap: _pickMonth,
         title: '今天还能花',
         trailing: XmAvatarButton(
           label: '满',
           tooltip: '更多',
           onTap: _showMore,
+        ),
+      ),
+    );
+  }
+
+  /// 点顶部日期换月份（含年份切换和「回到本月」）
+  Future<void> _pickMonth() async {
+    final DateTime now = DateTime.now();
+    int year = _state.month.year;
+
+    final DateTime? picked = await showDialog<DateTime>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext ctx2, StateSetter setD) {
+            return AlertDialog(
+              titlePadding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+              title: Row(
+                children: <Widget>[
+                  IconButton(
+                    onPressed: () => setD(() => year -= 1),
+                    icon: const Icon(Icons.chevron_left_rounded),
+                    tooltip: '上一年',
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text('$year 年',
+                          style: Xm.text(16, FontWeight.w700)),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => setD(() => year += 1),
+                    icon: const Icon(Icons.chevron_right_rounded),
+                    tooltip: '下一年',
+                  ),
+                ],
+              ),
+              contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              content: SizedBox(
+                width: 300,
+                child: GridView.count(
+                  crossAxisCount: 3,
+                  shrinkWrap: true,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: 1.9,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: <Widget>[
+                    for (int m = 1; m <= 12; m++)
+                      _monthCell(
+                        year: year,
+                        month: m,
+                        selected: _state.month.year == year &&
+                            _state.month.month == m,
+                        isNow: now.year == year && now.month == m,
+                        onTap: () => Navigator.of(ctx2)
+                            .pop(DateTime(year, m, 1, 12)),
+                      ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(now),
+                  child: const Text('回到本月'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (picked == null || !mounted) return;
+    await _state.jumpTo(picked);
+  }
+
+  Widget _monthCell({
+    required int year,
+    required int month,
+    required bool selected,
+    required bool isNow,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected
+              ? Xm.brand
+              : (isNow ? Xm.brandLL : Colors.transparent),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          '$month 月',
+          style: Xm.text(
+            13.5,
+            selected || isNow ? FontWeight.w600 : FontWeight.w400,
+            color: selected
+                ? (Xm.isDark ? const Color(0xFF08120D) : Colors.white)
+                : (isNow ? Xm.brand : Xm.ink2),
+          ),
         ),
       ),
     );

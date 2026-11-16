@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
 import '../../ui/components.dart';
+import '../../ui/unsaved_guard.dart';
 
 /// 账户详情 / 新增账户。
 ///
@@ -36,7 +37,27 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
   List<AccountType> _types = const <AccountType>[];
   Map<int, TxnCategory> _categories = const <int, TxnCategory>{};
 
+  bool _saved = false;
+
+  /// 进来时的快照，用来判断有没有未保存的改动
+  String _origName = '';
+  String _origBalance = '';
+  String _origNote = '';
+  String _origType = '银行卡';
+  bool _origLiability = false;
+  bool _origInclude = true;
+
   bool get _isEditing => widget.account != null;
+
+  bool get _dirty {
+    if (_saved) return false;
+    return _name.text.trim() != _origName ||
+        _balance.text.trim() != _origBalance ||
+        _note.text.trim() != _origNote ||
+        _type != _origType ||
+        _isLiability != _origLiability ||
+        _includeInTotal != _origInclude;
+  }
 
   /// 选择列表：库里现有的类型；如果这个账户用的类型已经被隐藏/是老的英文 key，
   /// 也把它补进来，避免保存时被悄悄换掉。
@@ -96,6 +117,12 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
       if (a != null) {
         _balance.text = formatCentsPlain(a.initialBalance + delta);
       }
+      _origName = _name.text.trim();
+      _origBalance = _balance.text.trim();
+      _origNote = _note.text.trim();
+      _origType = _type;
+      _origLiability = _isLiability;
+      _origInclude = _includeInTotal;
       _loaded = true;
     });
   }
@@ -153,12 +180,15 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
       );
     }
     if (!mounted) return;
+    _saved = true;
     Navigator.of(context).pop(true);
   }
 
   @override
   Widget build(BuildContext context) {
-    return XmPageScaffold(
+    return XmUnsavedScope(
+      dirty: _dirty,
+      child: XmPageScaffold(
       title: _isEditing ? '编辑账户' : '新增账户',
       subtitle: _isEditing ? '改动会立即影响净资产' : '填现在实际有多少钱',
       actions: <Widget>[
@@ -280,6 +310,7 @@ class _AccountDetailPageState extends State<AccountDetailPage> {
                 ],
               ],
             ),
+      ),
     );
   }
 

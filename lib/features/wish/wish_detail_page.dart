@@ -10,6 +10,9 @@ import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
 import '../../ui/components.dart';
+import '../../ui/unsaved_guard.dart';
+import 'crop_page.dart';
+import 'image_view_page.dart';
 
 /// 想买清单的详情 / 新建页。
 ///
@@ -33,9 +36,28 @@ class _WishDetailPageState extends State<WishDetailPage> {
   DateTime? _target;
   String? _imagePath;
   bool _saving = false;
+  bool _saved = false;
   bool _loadingImage = false;
 
   bool get _isEditing => widget.wish != null;
+
+  /// 和进来时的状态比，有改动就拦一下返回
+  bool get _dirty {
+    if (_saved) return false;
+    final Wish? w = widget.wish;
+    if (w == null) {
+      return _name.text.trim().isNotEmpty ||
+          _price.text.trim().isNotEmpty ||
+          _note.text.trim().isNotEmpty ||
+          _target != null ||
+          _imagePath != null;
+    }
+    return _name.text.trim() != w.name ||
+        _price.text.trim() != (w.price > 0 ? formatCentsPlain(w.price) : '') ||
+        _note.text.trim() != (w.note ?? '') ||
+        _target?.millisecondsSinceEpoch != w.targetAt?.millisecondsSinceEpoch ||
+        _imagePath != w.imagePath;
+  }
 
   @override
   void initState() {
@@ -96,20 +118,16 @@ class _WishDetailPageState extends State<WishDetailPage> {
         _toast('读不到这张图');
         return;
       }
-      final Directory dir = await getApplicationDocumentsDirectory();
-      final Directory wishDir = Directory('${dir.path}/wishes');
-      if (!wishDir.existsSync()) wishDir.createSync(recursive: true);
 
-      final String ext = f.name.contains('.')
-          ? f.name.substring(f.name.lastIndexOf('.')).toLowerCase()
-          : '.jpg';
-      final String dest =
-          '${wishDir.path}/${DateTime.now().millisecondsSinceEpoch}$ext';
-      await File(srcPath).copy(dest);
+      // 选完图先让用户自己框一下要哪块
+      if (!mounted) return;
+      setState(() => _loadingImage = false);
+      final String? cropped = await cropImageToFile(context, srcPath);
+      if (!mounted || cropped == null) return;
 
       // 换图时把旧文件删掉，避免目录越来越大
       final String? old = _imagePath;
-      if (old != null && old != dest) {
+      if (old != null && old != cropped) {
         final File oldFile = File(old);
         if (oldFile.existsSync()) {
           try {
@@ -118,15 +136,30 @@ class _WishDetailPageState extends State<WishDetailPage> {
         }
       }
       if (!mounted) return;
-      setState(() {
-        _imagePath = dest;
-        _loadingImage = false;
-      });
+      setState(() => _imagePath = cropped);
     } catch (e) {
       if (!mounted) return;
       setState(() => _loadingImage = false);
       _toast('选图失败：$e');
     }
+  }
+
+  /// 点图片：全屏看，顺便可以重新裁
+  Future<void> _viewImage() async {
+    final String? path = _imagePath;
+    if (path == null) {
+      await _pickImage();
+      return;
+    }
+    final String? next = await showWishImageView(context, path);
+    if (!mounted || next == null || next == path) return;
+    final File old = File(path);
+    if (old.existsSync()) {
+      try {
+        old.deleteSync();
+      } catch (_) {}
+    }
+    setState(() => _imagePath = next);
   }
 
   Future<void> _removeImage() async {
@@ -171,6 +204,7 @@ class _WishDetailPageState extends State<WishDetailPage> {
       );
     }
     if (!mounted) return;
+    _saved = true;
     Navigator.of(context).pop(true);
   }
 
@@ -210,7 +244,9 @@ class _WishDetailPageState extends State<WishDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    return XmPageScaffold(
+    return XmUnsavedScope(
+      dirty: _dirty,
+      child: XmPageScaffold(
       title: _isEditing ? '想买的东西' : '添加想买',
       subtitle: _isEditing ? '记录了就不容易忘' : '先记下来，再慢慢决定',
       actions: <Widget>[
@@ -288,6 +324,7 @@ class _WishDetailPageState extends State<WishDetailPage> {
           ],
         ],
       ),
+      ),
     );
   }
 
@@ -296,7 +333,7 @@ class _WishDetailPageState extends State<WishDetailPage> {
     final bool hasImage = file != null && file.existsSync();
 
     return GestureDetector(
-      onTap: _loadingImage ? null : _pickImage,
+      onTap: _loadingImage ? null : _viewImage,
       child: Container(
         height: 168,
         decoration: BoxDecoration(
@@ -401,3 +438,4 @@ class _WishDetailPageState extends State<WishDetailPage> {
     );
   }
 }
+

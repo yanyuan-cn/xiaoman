@@ -6,6 +6,7 @@ import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
 import '../../state/data_bus.dart';
+import '../../ui/unsaved_guard.dart';
 
 class RecurringPage extends StatefulWidget {
   const RecurringPage({super.key, required this.repo});
@@ -300,6 +301,27 @@ class _RuleEditorPageState extends State<_RuleEditorPage> {
   int? _toId;
   int? _categoryId;
   bool _saving = false;
+  bool _saved = false;
+
+  /// 进来时的快照，用来判断有没有未保存的改动
+  late String _oName;
+  late String _oAmount;
+  late String _oNote;
+  late int _oDay;
+  int? _oFrom;
+  int? _oTo;
+  int? _oCat;
+
+  bool get _dirty {
+    if (_saved) return false;
+    return _name.text.trim() != _oName ||
+        _amount.text.trim() != _oAmount ||
+        _note.text.trim() != _oNote ||
+        _day != _oDay ||
+        _fromId != _oFrom ||
+        _toId != _oTo ||
+        _categoryId != _oCat;
+  }
 
   @override
   void initState() {
@@ -328,6 +350,13 @@ class _RuleEditorPageState extends State<_RuleEditorPage> {
         _name.text = '还款';
       }
     }
+    _oName = _name.text.trim();
+    _oAmount = _amount.text.trim();
+    _oNote = _note.text.trim();
+    _oDay = _day;
+    _oFrom = _fromId;
+    _oTo = _toId;
+    _oCat = _categoryId;
   }
 
   @override
@@ -371,6 +400,7 @@ class _RuleEditorPageState extends State<_RuleEditorPage> {
     );
     await widget.repo.runDueRecurringRules();
     if (!mounted) return;
+    _saved = true;
     Navigator.of(context).pop(true);
   }
 
@@ -390,7 +420,9 @@ class _RuleEditorPageState extends State<_RuleEditorPage> {
         .where((TxnCategory c) => c.kind == 'expense' && c.parentId == null)
         .toList(growable: false);
 
-    return Scaffold(
+    return XmUnsavedScope(
+      dirty: _dirty,
+      child: Scaffold(
       appBar: AppBar(
         title: Text(widget.rule == null ? '新增定期扣款' : '编辑定期扣款'),
       ),
@@ -489,6 +521,7 @@ class _RuleEditorPageState extends State<_RuleEditorPage> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

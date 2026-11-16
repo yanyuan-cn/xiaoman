@@ -6,6 +6,7 @@ import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
 import '../../ui/components.dart';
+import '../../ui/unsaved_guard.dart';
 
 /// 记账面板：从右下角的「记一笔」长出来。
 ///
@@ -47,11 +48,36 @@ class _RecordPageState extends State<RecordPage> {
   List<TxnCategory> _categories = const <TxnCategory>[];
   bool _ready = false;
   bool _saving = false;
+  bool _saved = false;
+
+  /// 分类 / 账户是不是按习惯自动选上的（只用来改提示文案）
+  bool _autoFilled = false;
   late bool _inBudget = widget.editing?.inBudget ?? true;
 
   bool get _isEditing => widget.editing != null;
   bool get _isTransfer => _kind == 'transfer';
   bool get _canSave => (parseYuanToCents(_amount) ?? 0) > 0;
+
+  /// 有没有未保存的改动（新记账也算，输入了金额就要拦）
+  bool get _dirty {
+    if (_saved) return false;
+    final Txn? e = widget.editing;
+    if (e == null) {
+      return _amount.isNotEmpty ||
+          _note.text.trim().isNotEmpty ||
+          _mood != 0 ||
+          _scene != null ||
+          _toAccountId != null;
+    }
+    return _amount != formatCentsPlain(e.amount) ||
+        _note.text.trim() != (e.note ?? '') ||
+        _mood != e.mood ||
+        _scene != e.workState ||
+        _accountId != e.accountId ||
+        _toAccountId != e.toAccountId ||
+        _inBudget != e.inBudget ||
+        _kind != e.kind;
+  }
 
   @override
   void initState() {
@@ -97,10 +123,31 @@ class _RecordPageState extends State<RecordPage> {
       _parentId = widget.initialCategoryId;
     }
 
+    // 没在编辑、也没有指定分类时，按「这个时间点平时怎么记」预选一下
+    TxnSuggestion sug = const TxnSuggestion();
+    if (widget.editing == null && widget.initialCategoryId == null) {
+      try {
+        sug = await widget.repo.suggestFor(DateTime.now());
+      } catch (_) {}
+    }
+
     setState(() {
       _accounts = accounts;
       _categories = categories;
       _accountId ??= accounts.isEmpty ? null : accounts.first.id;
+      if (widget.editing == null &&
+          sug.accountId != null &&
+          accounts.any((Account a) => a.id == sug.accountId)) {
+        _accountId = sug.accountId;
+      }
+      if (widget.editing == null &&
+          _parentId == null &&
+          sug.categoryId != null &&
+          categories.any((TxnCategory c) =>
+              c.id == sug.categoryId && c.parentId == null)) {
+        _parentId = sug.categoryId;
+      }
+      _autoFilled = !sug.isEmpty && (widget.editing == null);
       _ready = true;
     });
   }
@@ -240,13 +287,41 @@ class _RecordPageState extends State<RecordPage> {
     }
 
     if (!mounted) return;
+    _saved = true;
     Navigator.of(context).pop(true);
+  }
+
+  /// 关闭前如果有改动，先问一句
+  Future<void> _close() async {
+    if (_dirty) {
+      final bool discard = await confirmDiscard(
+        context,
+        title: _isEditing ? '放弃这次修改？' : '不记这一笔了？',
+        content: '刚填的内容还没保存。',
+        discardLabel: _isEditing ? '不保存' : '丢弃',
+      );
+      if (!discard || !mounted) return;
+    }
+    if (mounted) Navigator.of(context).pop(_saved ? true : false);
   }
 
   @override
   Widget build(BuildContext context) {
     final double h = MediaQuery.sizeOf(context).height * RecordPage.heightFactor;
-    return Align(
+    return PopScope<Object?>(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (bool didPop, Object? result) async {
+        if (didPop) return;
+        final bool discard = await confirmDiscard(
+          context,
+          title: _isEditing ? '放弃这次修改？' : '不记这一笔了？',
+          content: '刚填的内容还没保存。',
+          discardLabel: _isEditing ? '不保存' : '丢弃',
+        );
+        if (!discard || !mounted) return;
+        Navigator.of(context).pop(false);
+      },
+      child: Align(
       alignment: Alignment.bottomCenter,
       child: SizedBox(
         height: h,
@@ -274,6 +349,21 @@ class _RecordPageState extends State<RecordPage> {
                   children: <Widget>[
                     Text(_isEditing ? '编辑账单' : '记一笔',
                         style: Xm.text(15, FontWeight.w600, spacing: -0.1)),
+                    if (_autoFilled)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Xm.brandLL,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text('按习惯预选',
+                              style: Xm.text(10, FontWeight.w600,
+                                  color: Xm.brand)),
+                        ),
+                      ),
                     const Spacer(),
                     GestureDetector(
                       onTap: _pickDate,
@@ -293,7 +383,7 @@ class _RecordPageState extends State<RecordPage> {
                       icon: Icons.close_rounded,
                       tooltip: '关闭',
                       size: 32,
-                      onTap: () => Navigator.of(context).pop(false),
+                      onTap: _close,
                     ),
                   ],
                 ),
@@ -309,6 +399,7 @@ class _RecordPageState extends State<RecordPage> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

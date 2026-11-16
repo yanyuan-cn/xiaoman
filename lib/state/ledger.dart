@@ -122,6 +122,12 @@ class LedgerState extends ChangeNotifier {
     await load();
   }
 
+  /// 直接跳到某个月（顶部日期选月用）
+  Future<void> jumpTo(DateTime target) async {
+    month = DateTime(target.year, target.month);
+    await load();
+  }
+
   Future<void> delete(Txn t) async {
     lastDeleted = t;
     await repo.softDelete(t.id);

@@ -46,6 +46,16 @@ class Account {
   }
 }
 
+/// 记账时的习惯预选结果。
+class TxnSuggestion {
+  const TxnSuggestion({this.categoryId, this.accountId});
+
+  final int? categoryId;
+  final int? accountId;
+
+  bool get isEmpty => categoryId == null && accountId == null;
+}
+
 /// 账户类型（活期存款 / 银行卡 / 自定义…）。
 class AccountType {
   const AccountType({

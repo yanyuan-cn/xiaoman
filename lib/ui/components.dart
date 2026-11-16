@@ -1029,16 +1029,30 @@ class XmHeader extends StatelessWidget {
     required this.title,
     this.kicker,
     this.trailing,
+    this.onKickerTap,
     this.padding = const EdgeInsets.fromLTRB(20, 2, 20, 6),
   });
 
   final String title;
   final String? kicker;
   final Widget? trailing;
+
+  /// 点那行小字（首页用来换月份）
+  final VoidCallback? onKickerTap;
   final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
+    final Widget? kick = kicker == null
+        ? null
+        : Text(
+            kicker!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Xm.text(12, FontWeight.w400,
+                spacing: 0.4, color: Xm.ink3),
+          );
+
     return Padding(
       padding: padding,
       child: Row(
@@ -1049,15 +1063,24 @@ class XmHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                if (kicker != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 5),
-                    child: Text(
-                      kicker!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Xm.text(12, FontWeight.w400,
-                          spacing: 0.4, color: Xm.ink3),
+                if (kick != null)
+                  GestureDetector(
+                    onTap: onKickerTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 5),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Flexible(child: kick),
+                          if (onKickerTap != null)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 3),
+                              child: Icon(Icons.expand_more_rounded,
+                                  size: 14, color: Xm.ink3),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 Text(

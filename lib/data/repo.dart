@@ -598,6 +598,61 @@ class Repo {
     await db.delete('wishes', where: 'id = ?', whereArgs: <Object>[id]);
   }
 
+  /// 记账时的习惯预选：同一个时段（前后各一小时）最常用的分类和账户。
+  ///
+  /// 只统计最近 90 天的支出。什么都没统计到时返回空，界面上就按老逻辑
+  /// 默认第一个账户、不预选分类。
+  Future<TxnSuggestion> suggestFor(DateTime when) async {
+    final int h = when.hour;
+    final List<int> hours = <int>[
+      (h - 1 + 24) % 24,
+      h,
+      (h + 1) % 24,
+    ];
+    final String hourExpr =
+        "CAST(strftime('%H', occurred_at / 1000, 'unixepoch', 'localtime') AS INTEGER)";
+    final String inHours = hours.map((int _) => '?').join(', ');
+    final int since = toUtcMs(when.subtract(const Duration(days: 90)));
+
+    Future<int?> pick(String column) async {
+      final List<Map<String, Object?>> rows = await db.rawQuery(
+        'SELECT $column AS v, COUNT(*) AS c FROM txns '
+        'WHERE deleted_at IS NULL AND kind = ? AND $column IS NOT NULL '
+        'AND occurred_at >= ? AND $hourExpr IN ($inHours) '
+        'GROUP BY $column ORDER BY c DESC LIMIT 1',
+        <Object>['expense', since, ...hours],
+      );
+      if (rows.isEmpty) return null;
+      return (rows.first['v'] as num?)?.toInt();
+    }
+
+    int? categoryId = await pick('category_id');
+    int? accountId = await pick('account_id');
+
+    // 时段内没有记录就退回到「最近最常用的」
+    if (categoryId == null) {
+      final List<Map<String, Object?>> rows = await db.rawQuery(
+        'SELECT category_id AS v, COUNT(*) AS c FROM txns '
+        "WHERE deleted_at IS NULL AND kind = 'expense' AND category_id IS NOT NULL "
+        'GROUP BY category_id ORDER BY c DESC LIMIT 1',
+      );
+      if (rows.isNotEmpty) {
+        categoryId = (rows.first['v'] as num?)?.toInt();
+      }
+    }
+    if (accountId == null) {
+      final List<Map<String, Object?>> rows = await db.rawQuery(
+        'SELECT account_id AS v, COUNT(*) AS c FROM txns '
+        'WHERE deleted_at IS NULL GROUP BY account_id ORDER BY c DESC LIMIT 1',
+      );
+      if (rows.isNotEmpty) {
+        accountId = (rows.first['v'] as num?)?.toInt();
+      }
+    }
+
+    return TxnSuggestion(categoryId: categoryId, accountId: accountId);
+  }
+
   /// 某个账户最近的流水（含转入的）
   Future<List<Txn>> txnsForAccount(int accountId, {int limit = 20}) async {
     final List<Map<String, Object?>> rows = await db.query(

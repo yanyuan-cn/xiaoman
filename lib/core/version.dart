@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '2.5.3';
-const int kAppBuild = 34;
+const String kAppVersion = '2.6.0';
+const int kAppBuild = 35;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -30,6 +30,13 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+2.6.0
+· 想买图片：选完可以自己拖动、缩放，框选要保留的部分再保存
+· 想买详情里点图片可以全屏看（双指放大），右下角能「重新裁切」
+· 想买 / 账户 / 记账 / 定期扣款：改了没保存就返回，会先弹窗问要不要放弃
+· 记账按习惯预选：同一时段（前后一小时）常用的分类和账户会自动选上，标题旁有提示
+· 首页顶部日期可以点开换月份，带年份切换和「回到本月」；重开 App 自动回到本月
+
 2.5.3
 · 想买进度条现在真的会随时间变长：跨度最少按 30 天算，今天加、今天到期的条目也不会永远是空条
 · 到期或超过预计日期时直接满格变红
