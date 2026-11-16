@@ -1,8 +1,8 @@
 {
-  "versionCode": 35,
-  "versionName": "2.6.0",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.6.0/app-release.apk",
-  "sha256": "C247845F78AE41695C00601A51CCCFA7995725E58FBA06FD3BAB5D45D1B79896",
+  "versionCode": 36,
+  "versionName": "2.6.1",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.6.1/app-release.apk",
+  "sha256": "6A02F02D45B4A130DD1E978F3732E84A2B8BBA8C4A6709AADF192461860F0C95",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "2.6.0：想买图片可自己框选裁切、点击全屏查看并可重新裁；编辑界面未保存返回会确认；记账按同一时段习惯预选分类与账户；首页顶部日期可切换查看月份。"
+  "notes": "2.6.1：裁切框现在可以自由拖动、四角和四边随便拉，框外拖动或双指可缩放图片；重新裁切改回从原图开始，不再在旧结果上越裁越小。"
 }

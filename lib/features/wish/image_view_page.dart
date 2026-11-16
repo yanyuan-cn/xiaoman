@@ -40,12 +40,13 @@ class _WishImageViewState extends State<_WishImageView> {
 
   Future<void> _recrop() async {
     setState(() => _busy = true);
-    final String? next = await cropImageToFile(context, _path);
+    // 从原图重新裁（不是在这张裁好的图上再裁），原图副本由 recropImage 保管
+    final String? next = await recropImage(context, _path);
     if (!mounted) return;
-    setState(() => _busy = false);
-    if (next != null) {
-      setState(() => _path = next);
-    }
+    setState(() {
+      _busy = false;
+      if (next != null) _path = next;
+    });
   }
 
   @override
@@ -77,6 +78,19 @@ class _WishImageViewState extends State<_WishImageView> {
                 ),
                 icon: const Icon(Icons.close_rounded,
                     color: Colors.white, size: 22),
+              ),
+            ),
+            Positioned(
+              left: 16,
+              bottom: 24,
+              child: IgnorePointer(
+                child: Text(
+                  '原图已保留，可反复重裁',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.45),
+                    fontSize: 11.5,
+                  ),
+                ),
               ),
             ),
             Positioned(

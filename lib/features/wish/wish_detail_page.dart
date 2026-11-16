@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../core/dates.dart';
 import '../../core/money.dart';
@@ -101,7 +100,7 @@ class _WishDetailPageState extends State<WishDetailPage> {
     setState(() => _target = DateTime(picked.year, picked.month, picked.day, 12));
   }
 
-  /// 选图 → 复制到应用私有目录（原图删了也不影响）
+  /// 选图 → 原图拷进应用目录 → 自己框一块 → 只留框内的部分
   Future<void> _pickImage() async {
     setState(() => _loadingImage = true);
     try {
@@ -119,22 +118,15 @@ class _WishDetailPageState extends State<WishDetailPage> {
         return;
       }
 
-      // 选完图先让用户自己框一下要哪块
       if (!mounted) return;
       setState(() => _loadingImage = false);
-      final String? cropped = await cropImageToFile(context, srcPath);
+      // pickAndCrop 会把原图留在应用目录里，之后「重新裁切」用得到
+      final String? cropped = await pickAndCrop(context, srcPath);
       if (!mounted || cropped == null) return;
 
-      // 换图时把旧文件删掉，避免目录越来越大
+      // 换图时把旧的一组（裁好的 + 原图副本）删掉
       final String? old = _imagePath;
-      if (old != null && old != cropped) {
-        final File oldFile = File(old);
-        if (oldFile.existsSync()) {
-          try {
-            oldFile.deleteSync();
-          } catch (_) {}
-        }
-      }
+      if (old != null && old != cropped) await deleteWishImage(old);
       if (!mounted) return;
       setState(() => _imagePath = cropped);
     } catch (e) {
@@ -153,26 +145,14 @@ class _WishDetailPageState extends State<WishDetailPage> {
     }
     final String? next = await showWishImageView(context, path);
     if (!mounted || next == null || next == path) return;
-    final File old = File(path);
-    if (old.existsSync()) {
-      try {
-        old.deleteSync();
-      } catch (_) {}
-    }
+    // 重裁时旧文件已经由 recropImage 清掉了，这里只换路径
     setState(() => _imagePath = next);
   }
 
   Future<void> _removeImage() async {
     final String? old = _imagePath;
     setState(() => _imagePath = null);
-    if (old != null) {
-      final File f = File(old);
-      if (f.existsSync()) {
-        try {
-          f.deleteSync();
-        } catch (_) {}
-      }
-    }
+    if (old != null) await deleteWishImage(old);
   }
 
   Future<void> _save() async {
@@ -230,14 +210,7 @@ class _WishDetailPageState extends State<WishDetailPage> {
 
     final String? old = _imagePath;
     await widget.repo.deleteWish(widget.wish!.id);
-    if (old != null) {
-      final File f = File(old);
-      if (f.existsSync()) {
-        try {
-          f.deleteSync();
-        } catch (_) {}
-      }
-    }
+    if (old != null) await deleteWishImage(old);
     if (!mounted) return;
     Navigator.of(context).pop(true);
   }
