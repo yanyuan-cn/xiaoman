@@ -13,7 +13,7 @@ import '../../ui/unsaved_guard.dart';
 import 'crop_page.dart';
 import 'image_view_page.dart';
 
-/// 想买清单的详情 / 新建页。
+/// 计划清单的详情 / 新建页。
 ///
 /// 字段：名称、价格、预计购买日期、备注、图片。图片会复制到应用私有目录，
 /// 这样原相册里的图删掉也不影响这里。
@@ -192,7 +192,7 @@ class _WishDetailPageState extends State<WishDetailPage> {
     final bool? ok = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('从想买里删掉'),
+        title: const Text('从计划里删掉'),
         content: const Text('只是删掉这条记录，不影响任何账目。'),
         actions: <Widget>[
           TextButton(
@@ -220,8 +220,8 @@ class _WishDetailPageState extends State<WishDetailPage> {
     return XmUnsavedScope(
       dirty: _dirty,
       child: XmPageScaffold(
-      title: _isEditing ? '想买的东西' : '添加想买',
-      subtitle: _isEditing ? '记录了就不容易忘' : '先记下来，再慢慢决定',
+      title: _isEditing ? '编辑计划' : '添加计划',
+      subtitle: _isEditing ? '改了记得保存' : '先记下来，再慢慢决定',
       actions: <Widget>[
         Padding(
           padding: const EdgeInsets.only(right: 4),
@@ -263,7 +263,7 @@ class _WishDetailPageState extends State<WishDetailPage> {
           XmField(
             controller: _note,
             label: '备注',
-            hint: '为什么想买 / 买了用在哪儿（可选）',
+            hint: '为什么打算买 / 买了用在哪儿（可选）',
             maxLength: 60,
           ),
           if (_isEditing) ...<Widget>[

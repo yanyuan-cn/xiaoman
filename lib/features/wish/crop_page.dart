@@ -20,7 +20,7 @@ const String _kCropTail = '_c.png';
 const String _kOrigTail = '_o.';
 const List<String> _kImageExts = <String>['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'];
 
-/// 想买图片的存放目录
+/// 计划图片的存放目录
 Future<Directory> wishImageDir() async {
   final Directory docs = await getApplicationDocumentsDirectory();
   final Directory dir = Directory('${docs.path}/wishes');

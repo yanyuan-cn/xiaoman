@@ -52,11 +52,6 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() => _reminder = c);
   }
 
-  Future<void> _saveReminder(ReminderConfig c) async {
-    setState(() => _reminder = c);
-    await DailyReminder.save(c);
-  }
-
   Future<void> _openReminderSheet() async {
     final bool notifOn = await DailyReminder.notificationsEnabled();
     final bool exact = await DailyReminder.canExactAlarm();

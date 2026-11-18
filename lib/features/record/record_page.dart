@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/dates.dart';
@@ -5,6 +7,7 @@ import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/repo.dart';
+import '../../data/suggest_rules.dart';
 import '../../ui/components.dart';
 import '../../ui/unsaved_guard.dart';
 
@@ -43,6 +46,7 @@ class _RecordPageState extends State<RecordPage> {
   int _mood = 0;
   String? _scene;
   final TextEditingController _note = TextEditingController();
+  Timer? _noteDebounce;
 
   List<Account> _accounts = const <Account>[];
   List<TxnCategory> _categories = const <TxnCategory>[];
@@ -50,8 +54,16 @@ class _RecordPageState extends State<RecordPage> {
   bool _saving = false;
   bool _saved = false;
 
-  /// 分类 / 账户是不是按习惯自动选上的（只用来改提示文案）
-  bool _autoFilled = false;
+  /// 这次预选是怎么来的：按习惯 / 按时间 / 按商家 / 沿用上次。空表示没预选。
+  String _autoReason = '';
+
+  /// 用户自己点过的开关。点过之后，对应的自动预选就不再覆盖他的选择。
+  bool _catTouched = false;
+  bool _accTouched = false;
+
+  /// 打开面板那一刻的场景，用来判断这次到底改没改
+  String? _initScene;
+
   late bool _inBudget = widget.editing?.inBudget ?? true;
 
   bool get _isEditing => widget.editing != null;
@@ -66,7 +78,7 @@ class _RecordPageState extends State<RecordPage> {
       return _amount.isNotEmpty ||
           _note.text.trim().isNotEmpty ||
           _mood != 0 ||
-          _scene != null ||
+          _scene != _initScene ||
           _toAccountId != null;
     }
     return _amount != formatCentsPlain(e.amount) ||
@@ -97,6 +109,7 @@ class _RecordPageState extends State<RecordPage> {
 
   @override
   void dispose() {
+    _noteDebounce?.cancel();
     _note.dispose();
     super.dispose();
   }
@@ -104,53 +117,158 @@ class _RecordPageState extends State<RecordPage> {
   Future<void> _load() async {
     final List<Account> accounts = await widget.repo.accounts();
     final List<TxnCategory> categories = await widget.repo.categories();
-    if (!mounted) return;
+    final DateTime now = DateTime.now();
+    final bool isNew = widget.editing == null;
 
-    final Txn? e = widget.editing;
-    if (e != null && e.categoryId != null) {
-      for (final TxnCategory c in categories) {
-        if (c.id == e.categoryId) {
-          if (c.parentId == null) {
-            _parentId = c.id;
-          } else {
-            _parentId = c.parentId;
-            _childId = c.id;
-          }
-          break;
-        }
-      }
-    } else if (widget.initialCategoryId != null) {
-      _parentId = widget.initialCategoryId;
-    }
-
-    // 没在编辑、也没有指定分类时，按「这个时间点平时怎么记」预选一下
-    TxnSuggestion sug = const TxnSuggestion();
-    if (widget.editing == null && widget.initialCategoryId == null) {
+    // 上一次记账留下的选择（所有推测都落空时的兜底）
+    RecordMemory memory = const RecordMemory();
+    List<int> byHour = const <int>[];
+    String? sceneHint;
+    if (isNew) {
       try {
-        sug = await widget.repo.suggestFor(DateTime.now());
+        memory = await widget.repo.lastRecord();
+        byHour = await widget.repo.rankedCategoriesAtHour(now);
+        sceneHint = await widget.repo.topSceneAtHour(now);
       } catch (_) {}
     }
 
+    int? parent;
+    int? child;
+    String reason = '';
+
+    // 1) 明确指定的分类（编辑既有账单 / 从别处带着分类进来）
+    final int? seed = widget.editing?.categoryId ?? widget.initialCategoryId;
+    if (seed != null) {
+      for (final TxnCategory c in categories) {
+        if (c.id != seed) continue;
+        if (c.parentId == null) {
+          parent = c.id;
+        } else {
+          parent = c.parentId;
+          child = c.id;
+        }
+        break;
+      }
+    } else if (isNew) {
+      // 2) 这个点平时记什么
+      for (final int id in byHour) {
+        final int? top = _topOf(id, categories);
+        if (top != null) {
+          parent = top;
+          reason = '按习惯';
+          break;
+        }
+      }
+      // 3) 都猜不到就沿用上次
+      if (parent == null && memory.categoryId != null) {
+        final int? top = _topOf(memory.categoryId!, categories);
+        if (top != null) {
+          parent = top;
+          reason = '沿用上次';
+          child = memory.categoryId == top ? null : memory.categoryId;
+        }
+      }
+    }
+
+    // 4) 有二级分类的（食品餐饮 → 早餐/午餐/晚餐…）按时间挑一个
+    if (isNew && parent != null && child == null) {
+      final List<TxnCategory> kids = _kidsOf(parent, categories);
+      if (kids.isNotEmpty) {
+        List<int> learned = const <int>[];
+        try {
+          learned = await widget.repo.rankedChildrenAtHour(
+            now,
+            <int>[for (final TxnCategory c in kids) c.id],
+          );
+        } catch (_) {}
+        if (learned.isNotEmpty) {
+          child = learned.first;
+          if (reason.isEmpty || reason == '沿用上次') reason = '按时间';
+        } else {
+          final int? meal = mealChildForHour(
+            <(int, String)>[for (final TxnCategory c in kids) (c.id, c.name)],
+            now.hour,
+          );
+          if (meal != null) {
+            child = meal;
+            if (reason.isEmpty || reason == '沿用上次') reason = '按时间';
+          }
+        }
+      }
+    }
+
+    // 5) 账户：先看这个分类平时用哪个，再看这个点用哪个，最后才用上次的
+    int? accountId = widget.editing?.accountId;
+    if (isNew) {
+      List<int> accs = const <int>[];
+      try {
+        if (parent != null) {
+          accs = await widget.repo.rankedAccountsForCategories(<int>[
+            parent,
+            for (final TxnCategory c in _kidsOf(parent, categories)) c.id,
+          ]);
+        }
+        if (accs.isEmpty) accs = await widget.repo.rankedAccountsAtHour(now);
+      } catch (_) {}
+      for (final int id in accs) {
+        if (accounts.any((Account a) => a.id == id)) {
+          accountId = id;
+          if (reason.isEmpty) reason = '按习惯';
+          break;
+        }
+      }
+      if (accountId == null &&
+          memory.accountId != null &&
+          accounts.any((Account a) => a.id == memory.accountId)) {
+        accountId = memory.accountId;
+        if (reason.isEmpty) reason = '沿用上次';
+      }
+    }
+    accountId ??= accounts.isEmpty ? null : accounts.first.id;
+
+    // 6) 当时在干嘛：这个点最常标的那个，没把握就用上次的
+    String? scene = widget.editing?.workState;
+    if (isNew) {
+      scene = sceneHint ?? memory.scene;
+      if (scene != null && !XmWorkState.presets.contains(scene)) scene = null;
+    }
+
+    if (!mounted) return;
     setState(() {
       _accounts = accounts;
       _categories = categories;
-      _accountId ??= accounts.isEmpty ? null : accounts.first.id;
-      if (widget.editing == null &&
-          sug.accountId != null &&
-          accounts.any((Account a) => a.id == sug.accountId)) {
-        _accountId = sug.accountId;
-      }
-      if (widget.editing == null &&
-          _parentId == null &&
-          sug.categoryId != null &&
-          categories.any((TxnCategory c) =>
-              c.id == sug.categoryId && c.parentId == null)) {
-        _parentId = sug.categoryId;
-      }
-      _autoFilled = !sug.isEmpty && (widget.editing == null);
+      _accountId = accountId;
+      _parentId = parent;
+      _childId = child;
+      _scene = scene;
+      _initScene = scene;
+      _autoReason = isNew ? reason : '';
       _ready = true;
     });
   }
+
+  TxnCategory? _catById(int id) {
+    for (final TxnCategory c in _categories) {
+      if (c.id == id) return c;
+    }
+    return null;
+  }
+
+  /// 往上找到一级分类；id 本身就是一级就返回自己，收支类型对不上返回 null。
+  int? _topOf(int id, List<TxnCategory> cats) {
+    for (final TxnCategory c in cats) {
+      if (c.id != id) continue;
+      if (c.kind != _kind) return null;
+      return c.parentId ?? c.id;
+    }
+    return null;
+  }
+
+  List<TxnCategory> _kidsOf(int parentId, List<TxnCategory> cats) =>
+      <TxnCategory>[
+        for (final TxnCategory c in cats)
+          if (c.parentId == parentId) c,
+      ];
 
   List<TxnCategory> get _topCategories => _categories
       .where((TxnCategory c) => c.kind == _kind && c.parentId == null)
@@ -166,9 +284,97 @@ class _RecordPageState extends State<RecordPage> {
     if (kind == _kind) return;
     setState(() {
       _kind = kind;
-      if (kind == 'transfer') {
+      _catTouched = false;
+      if (kind == 'transfer' ||
+          _parentId == null ||
+          !_topCategories.any((TxnCategory c) => c.id == _parentId)) {
         _parentId = null;
         _childId = null;
+      }
+    });
+  }
+
+  /// 换了一级分类之后：按时间挑二级分类，再把账户跟着分类换成常用的那个。
+  ///
+  /// [pickChild] 为 false 时不碰二级分类（备注只匹配到一级分类时，
+  /// 别再按时间塞一个子类进去，那等于瞎猜）。
+  Future<void> _afterCategoryChanged({bool pickChild = true}) async {
+    final int? pid = _parentId;
+    if (pid == null || _isEditing) return;
+    final DateTime now = DateTime.now();
+    final List<TxnCategory> kids = _kidsOf(pid, _categories);
+
+    int? child;
+    String reason = '';
+    if (pickChild && kids.isNotEmpty) {
+      List<int> learned = const <int>[];
+      try {
+        learned = await widget.repo.rankedChildrenAtHour(
+          now,
+          <int>[for (final TxnCategory c in kids) c.id],
+        );
+      } catch (_) {}
+      if (learned.isNotEmpty) {
+        child = learned.first;
+        reason = '按时间';
+      } else {
+        child = mealChildForHour(
+          <(int, String)>[for (final TxnCategory c in kids) (c.id, c.name)],
+          now.hour,
+        );
+        if (child != null) reason = '按时间';
+      }
+    }
+
+    List<int> accs = const <int>[];
+    if (!_accTouched) {
+      try {
+        accs = await widget.repo.rankedAccountsForCategories(<int>[
+          pid,
+          for (final TxnCategory c in kids) c.id,
+        ]);
+      } catch (_) {}
+    }
+
+    if (!mounted || _parentId != pid) return;
+    setState(() {
+      if (_childId == null && child != null) _childId = child;
+      if (reason.isNotEmpty && _autoReason.isEmpty) _autoReason = reason;
+      if (!_accTouched) {
+        for (final int id in accs) {
+          if (_accounts.any((Account a) => a.id == id)) {
+            _accountId = id;
+            break;
+          }
+        }
+      }
+    });
+  }
+
+  /// 备注写着商家名时，跟着历史上同一家店的分类走（写了「罗森」就记零食）。
+  void _onNoteChanged(String text) {
+    _noteDebounce?.cancel();
+    if (_isEditing || _catTouched) return;
+    final String t = text.trim();
+    if (t.length < 2) return;
+    _noteDebounce = Timer(const Duration(milliseconds: 500), () async {
+      List<int> ids = const <int>[];
+      try {
+        ids = await widget.repo.rankedCategoriesForNote(t, kind: _kind);
+      } catch (_) {}
+      if (!mounted || _catTouched || _isEditing) return;
+      for (final int id in ids) {
+        final TxnCategory? c = _catById(id);
+        if (c == null || c.kind != _kind) continue;
+        final int top = c.parentId ?? c.id;
+        if (!_topCategories.any((TxnCategory x) => x.id == top)) continue;
+        setState(() {
+          _parentId = top;
+          _childId = c.parentId == null ? null : c.id;
+          _autoReason = '按商家';
+        });
+        await _afterCategoryChanged(pickChild: c.parentId != null);
+        return;
       }
     });
   }
@@ -286,6 +492,15 @@ class _RecordPageState extends State<RecordPage> {
       );
     }
 
+    // 记下这次的选择，下次猜不出来时用它兜底
+    try {
+      await widget.repo.rememberRecord(
+        categoryId: categoryId,
+        accountId: accountId,
+        scene: scene,
+      );
+    } catch (_) {}
+
     if (!mounted) return;
     _saved = true;
     Navigator.of(context).pop(true);
@@ -300,9 +515,16 @@ class _RecordPageState extends State<RecordPage> {
         content: '刚填的内容还没保存。',
         discardLabel: _isEditing ? '不保存' : '丢弃',
       );
-      if (!discard || !mounted) return;
+      if (!discard) return;
     }
-    if (mounted) Navigator.of(context).pop(_saved ? true : false);
+    _popPage(_saved);
+  }
+
+  /// 统一从这里关面板：build 里的 context 参数会遮住 State.context，
+  /// 直接写 Navigator.of(context) 会被分析器判成「跨 await 用 context」。
+  void _popPage(bool result) {
+    if (!mounted) return;
+    Navigator.of(context).pop(result);
   }
 
   @override
@@ -318,8 +540,8 @@ class _RecordPageState extends State<RecordPage> {
           content: '刚填的内容还没保存。',
           discardLabel: _isEditing ? '不保存' : '丢弃',
         );
-        if (!discard || !mounted) return;
-        Navigator.of(context).pop(false);
+        if (!discard) return;
+        _popPage(false);
       },
       child: Align(
       alignment: Alignment.bottomCenter,
@@ -349,7 +571,7 @@ class _RecordPageState extends State<RecordPage> {
                   children: <Widget>[
                     Text(_isEditing ? '编辑账单' : '记一笔',
                         style: Xm.text(15, FontWeight.w600, spacing: -0.1)),
-                    if (_autoFilled)
+                    if (_autoReason.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(left: 8),
                         child: Container(
@@ -359,7 +581,7 @@ class _RecordPageState extends State<RecordPage> {
                             color: Xm.brandLL,
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Text('按习惯预选',
+                          child: Text(_autoReason,
                               style: Xm.text(10, FontWeight.w600,
                                   color: Xm.brand)),
                         ),
@@ -481,8 +703,11 @@ class _RecordPageState extends State<RecordPage> {
                     label: c.name,
                     dense: true,
                     selected: _childId == c.id,
-                    onTap: () => setState(
-                        () => _childId = _childId == c.id ? null : c.id),
+                    onTap: () => setState(() {
+                      _childId = _childId == c.id ? null : c.id;
+                      _catTouched = true;
+                      _autoReason = '';
+                    }),
                   ),
               ],
             ),
@@ -503,7 +728,10 @@ class _RecordPageState extends State<RecordPage> {
                   label: a.displayName,
                   dense: true,
                   selected: _accountId == a.id,
-                  onTap: () => setState(() => _accountId = a.id),
+                  onTap: () => setState(() {
+                    _accountId = a.id;
+                    _accTouched = true;
+                  }),
                 ),
             ],
           ),
@@ -535,8 +763,9 @@ class _RecordPageState extends State<RecordPage> {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: XmField(
             controller: _note,
-            hint: '备注（可选）',
+            hint: '备注（可选，写商家名能自动归类）',
             maxLength: 40,
+            onChanged: _onNoteChanged,
             textInputAction: TextInputAction.done,
           ),
         ),
@@ -573,10 +802,16 @@ class _RecordPageState extends State<RecordPage> {
           final bool on = _parentId == c.id;
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => setState(() {
-              _parentId = on ? null : c.id;
-              _childId = null;
-            }),
+            onTap: () {
+              final bool on = _parentId == c.id;
+              setState(() {
+                _parentId = on ? null : c.id;
+                _childId = null;
+                _catTouched = true;
+                _autoReason = '';
+              });
+              if (!on) _afterCategoryChanged();
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 190),
               padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
@@ -632,7 +867,9 @@ class _RecordPageState extends State<RecordPage> {
                 label: a.displayName,
                 dense: true,
                 selected: _toAccountId == a.id,
-                onTap: () => setState(() => _toAccountId = a.id),
+                onTap: () => setState(() {
+                  _toAccountId = a.id;
+                }),
               ),
           ],
         ),

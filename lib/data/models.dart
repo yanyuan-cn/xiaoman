@@ -46,14 +46,50 @@ class Account {
   }
 }
 
-/// 记账时的习惯预选结果。
+/// 记账面板打开时的预选结果。
 class TxnSuggestion {
-  const TxnSuggestion({this.categoryId, this.accountId});
+  const TxnSuggestion({
+    this.categoryId,
+    this.childId,
+    this.accountId,
+    this.scene,
+    this.reason = '',
+  });
 
+  /// 一级分类
   final int? categoryId;
+
+  /// 二级分类（早餐 / 午餐 / 休闲零食…）
+  final int? childId;
+
   final int? accountId;
 
-  bool get isEmpty => categoryId == null && accountId == null;
+  /// 「当时在干嘛」
+  final String? scene;
+
+  /// 这次是怎么猜出来的，显示成小标签：按习惯 / 按时间 / 按商家 / 沿用上次
+  final String reason;
+
+  bool get isEmpty =>
+      categoryId == null &&
+      childId == null &&
+      accountId == null &&
+      (scene == null || scene!.isEmpty);
+}
+
+/// 上一次记账留下来的选择。所有自动预选都猜不到时用它兜底。
+class RecordMemory {
+  const RecordMemory({this.categoryId, this.accountId, this.scene});
+
+  /// 上次记的二级分类（如果只记了一级，就是一级）
+  final int? categoryId;
+  final int? accountId;
+  final String? scene;
+
+  bool get isEmpty =>
+      categoryId == null &&
+      accountId == null &&
+      (scene == null || scene!.isEmpty);
 }
 
 /// 账户类型（活期存款 / 银行卡 / 自定义…）。
@@ -194,7 +230,7 @@ enum XmMood {
   }
 }
 
-/// 想买清单里的一项。
+/// 计划清单里的一项（原「想买」，v2.7.0 改名）。
 class Wish {
   const Wish({
     required this.id,

@@ -1,7 +1,7 @@
 /// 版本信息。改了 pubspec 里的 version，这里也要同步改。
 const String kAppName = '小满';
-const String kAppVersion = '2.6.1';
-const int kAppBuild = 36;
+const String kAppVersion = '2.7.0';
+const int kAppBuild = 37;
 
 /// 更新清单地址，按顺序尝试，第一个成功的就用。
 /// 国内 raw.githubusercontent.com 基本连不上，所以前面放镜像。
@@ -30,6 +30,19 @@ const String kReleasePageUrl =
 const String kRepoUrl = 'https://github.com/yanyuan-cn/xiaoman';
 
 const String kChangelog = '''
+2.7.0
+· 记账预选更聪明：先看这个点平时记什么，选了「食品餐饮」还会按时间挑早餐 / 午餐 / 晚餐
+· 备注里写商家名会自动归类：以前记过「罗森」「沃尔玛」，这次打上去就直接把分类选好
+· 账户跟着分类走：同一个分类平时用哪个账户付，就预选哪个
+· 「当时在干嘛」也会按这个点最常标的标签预选；都猜不出来就沿用上次的选择
+· 标题旁的小标签会说清这次是怎么选上的：按习惯 / 按时间 / 按商家 / 沿用上次
+· 「想买」改名叫「计划」
+
+2.6.1
+· 图片裁切重写：整张图先完整显示，框能自由拖动、边角能拉；图片本身可以双指缩放和平移，再大的图也选得准
+· 保留原图：裁切结果另存一份，重新裁切永远从原图开始，不会越裁越糊
+· 修复上一版裁切框和实际输出位置对不上的问题
+
 2.6.0
 · 想买图片：选完可以自己拖动、缩放，框选要保留的部分再保存
 · 想买详情里点图片可以全屏看（双指放大），右下角能「重新裁切」

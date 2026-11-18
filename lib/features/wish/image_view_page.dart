@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme.dart';
 import 'crop_page.dart';
 
-/// 全屏看想买的图片，可以双指放大，也可以直接重新裁切。
+/// 全屏看计划里的图片，可以双指放大，也可以直接重新裁切。
 ///
 /// 返回：新图片路径（重新裁切过）或 null（只是看了看）。
 Future<String?> showWishImageView(

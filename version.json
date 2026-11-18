@@ -1,8 +1,8 @@
 {
-  "versionCode": 36,
-  "versionName": "2.6.1",
-  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.6.1/app-release.apk",
-  "sha256": "6A02F02D45B4A130DD1E978F3732E84A2B8BBA8C4A6709AADF192461860F0C95",
+  "versionCode": 37,
+  "versionName": "2.7.0",
+  "apkUrl": "https://github.com/yanyuan-cn/xiaoman/releases/download/v2.7.0/app-release.apk",
+  "sha256": "1EDAB8C85B0A8D9ED00C8DCBCD4D88BEB7051F80E6944C5B820E7530A843143A",
   "url": "https://github.com/yanyuan-cn/xiaoman/releases",
-  "notes": "2.6.1：裁切框现在可以自由拖动、四角和四边随便拉，框外拖动或双指可缩放图片；重新裁切改回从原图开始，不再在旧结果上越裁越小。"
+  "notes": "2.7.0：记账预选重写——按这个点的习惯预选分类/账户/「当时在干嘛」；选了食品餐饮会按时间挑早餐午餐晚餐；备注写商家名能自动归类；猜不到就沿用上次。想买改名叫计划。"
 }

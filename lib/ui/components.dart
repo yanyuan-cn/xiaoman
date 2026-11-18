@@ -373,7 +373,7 @@ class XmDivider extends StatelessWidget {
 
 /// 左滑露出操作按钮（和 [XmSwipeDelete] 一样的交互，但按钮内容和颜色自定义）。
 ///
-/// 用在「想买」上：左滑露出「已买 / 取消」，正向操作所以不用红色做底。
+/// 用在「计划」上：左滑露出「已买 / 取消」，正向操作所以不用红色做底。
 class XmSwipeActions extends StatefulWidget {
   const XmSwipeActions({
     super.key,

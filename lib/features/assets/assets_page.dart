@@ -165,7 +165,7 @@ class _AssetsPageState extends State<AssetsPage> {
     );
   }
 
-  /// 三个大板块：资产 / 负债 / 想买，按用户排的顺序拼出来。
+  /// 三个大板块：资产 / 负债 / 计划，按用户排的顺序拼出来。
   List<Widget> _sectionWidgets(
     String id, {
     required List<Account> assets,
@@ -257,7 +257,7 @@ class _AssetsPageState extends State<AssetsPage> {
     const Map<String, String> names = <String, String>{
       'assets': '资产',
       'liabilities': '负债',
-      'wishes': '想买',
+      'wishes': '计划',
     };
 
     await showModalBottomSheet<void>(
@@ -419,7 +419,7 @@ class _AssetsPageState extends State<AssetsPage> {
     );
   }
 
-  /// 右上角的 ＋ 现在管两件事：新增账户 / 添加想买。
+  /// 右上角的 ＋ 现在管两件事：新增账户 / 添加计划。
   Future<void> _showAddMenu() async {
     final String? pick = await showModalBottomSheet<String>(
       context: context,
@@ -470,8 +470,8 @@ class _AssetsPageState extends State<AssetsPage> {
                 child: Icon(Icons.card_giftcard_rounded,
                     size: 18, color: Xm.gold),
               ),
-              title: Text('添加想买', style: Xm.text(15, FontWeight.w600)),
-              subtitle: Text('记下想要的东西和价格',
+              title: Text('添加计划', style: Xm.text(15, FontWeight.w600)),
+              subtitle: Text('记下打算买的东西和价格',
                   style: Xm.text(11.5, FontWeight.w400, color: Xm.ink3)),
               onTap: () => Navigator.of(ctx).pop('wish'),
             ),
@@ -487,7 +487,7 @@ class _AssetsPageState extends State<AssetsPage> {
     }
   }
 
-  // ---------------- 想买 ----------------
+  // ---------------- 计划 ----------------
 
   Widget _wishSection() {
     return Column(
@@ -496,11 +496,11 @@ class _AssetsPageState extends State<AssetsPage> {
         _sectionHeader(
           icon: Icons.card_giftcard_rounded,
           color: Xm.gold,
-          title: '想买',
-          subtitle: _wishes.isEmpty ? '空' : '${_wishes.length} 件',
+          title: '计划',
+          subtitle: _wishes.isEmpty ? '空' : '${_wishes.length} 项',
         ),
         if (_wishes.isEmpty)
-          _emptyHint('还没有想买的东西，点右上角 ＋ 记一个')
+          _emptyHint('还没有计划，点右上角 ＋ 加一个')
         else
           XmCard(
             margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -681,13 +681,13 @@ class _AssetsPageState extends State<AssetsPage> {
     );
   }
 
-  /// 右滑「取消」：从想买里删掉，先确认一下（删了没法撤销）。
+  /// 右滑「取消」：从计划里删掉，先确认一下（删了没法撤销）。
   Future<void> _cancelWish(Wish w) async {
     final bool? ok = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
-        title: Text('不想买「${w.name}」了？'),
-        content: const Text('会从想买清单里删掉，不影响任何账目。'),
+        title: Text('不打算买「${w.name}」了？'),
+        content: const Text('会从计划清单里删掉，不影响任何账目。'),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -714,7 +714,7 @@ class _AssetsPageState extends State<AssetsPage> {
     await _load();
     DataBus.instance.bump();
     if (!mounted) return;
-    _toast('已从想买里删掉');
+    _toast('已从计划里删掉');
   }
 
   Widget _wishThumb(Wish w) {

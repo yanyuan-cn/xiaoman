@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 import 'models.dart';
+import 'suggest_rules.dart';
 
 // 按职责拆成四个扩展文件（备份 / 导入 / 预算 / 统计）。在这里 re-export，
 // 调用方只要 `import 'repo.dart';` 就能拿到全部方法，不用改任何调用点。
@@ -11,6 +12,10 @@ export 'repo_stats.dart';
 
 /// 本地时间 -> UTC 毫秒（库里统一存 UTC）
 int toUtcMs(DateTime local) => local.toUtc().millisecondsSinceEpoch;
+
+/// 取「这笔账是本地时间几点」的 SQL 表达式，预选时按小时归类用。
+const String kHourExpr =
+    "CAST(strftime('%H', occurred_at / 1000, 'unixepoch', 'localtime') AS INTEGER)";
 
 /// 去重指纹：方向 + 金额 + 分钟 + 备注
 String dedupHashFor({
@@ -525,7 +530,7 @@ class Repo {
   }
 
   // ------------------------------------------------------------------
-  // 想买清单
+  // 计划清单
   // ------------------------------------------------------------------
 
   Future<List<Wish>> wishes({bool includeBought = false}) async {
@@ -598,59 +603,192 @@ class Repo {
     await db.delete('wishes', where: 'id = ?', whereArgs: <Object>[id]);
   }
 
-  /// 记账时的习惯预选：同一个时段（前后各一小时）最常用的分类和账户。
+  // ------------------------------------------------------------------
+  // 记账预选：全部靠本地历史，不联网
+  // ------------------------------------------------------------------
+
+  /// 「时间」这一维：当前小时前后各一小时里最常用的分类，按次数降序。
   ///
-  /// 只统计最近 90 天的支出。什么都没统计到时返回空，界面上就按老逻辑
-  /// 默认第一个账户、不预选分类。
-  Future<TxnSuggestion> suggestFor(DateTime when) async {
-    final int h = when.hour;
-    final List<int> hours = <int>[
-      (h - 1 + 24) % 24,
-      h,
-      (h + 1) % 24,
-    ];
-    final String hourExpr =
-        "CAST(strftime('%H', occurred_at / 1000, 'unixepoch', 'localtime') AS INTEGER)";
+  /// 返回的可能是二级分类的 id，调用方自己往上找一级。先看最近 90 天，
+  /// 90 天里这个点没记过东西就退到全量历史。
+  Future<List<int>> rankedCategoriesAtHour(
+    DateTime when, {
+    String kind = 'expense',
+    int limit = 6,
+  }) async {
+    final List<int> hours = hourWindow(when.hour);
     final String inHours = hours.map((int _) => '?').join(', ');
-    final int since = toUtcMs(when.subtract(const Duration(days: 90)));
 
-    Future<int?> pick(String column) async {
-      final List<Map<String, Object?>> rows = await db.rawQuery(
-        'SELECT $column AS v, COUNT(*) AS c FROM txns '
-        'WHERE deleted_at IS NULL AND kind = ? AND $column IS NOT NULL '
-        'AND occurred_at >= ? AND $hourExpr IN ($inHours) '
-        'GROUP BY $column ORDER BY c DESC LIMIT 1',
-        <Object>['expense', since, ...hours],
-      );
-      if (rows.isEmpty) return null;
-      return (rows.first['v'] as num?)?.toInt();
-    }
-
-    int? categoryId = await pick('category_id');
-    int? accountId = await pick('account_id');
-
-    // 时段内没有记录就退回到「最近最常用的」
-    if (categoryId == null) {
+    Future<List<int>> run(int? since) async {
       final List<Map<String, Object?>> rows = await db.rawQuery(
         'SELECT category_id AS v, COUNT(*) AS c FROM txns '
-        "WHERE deleted_at IS NULL AND kind = 'expense' AND category_id IS NOT NULL "
-        'GROUP BY category_id ORDER BY c DESC LIMIT 1',
+        'WHERE deleted_at IS NULL AND kind = ? AND category_id IS NOT NULL '
+        '${since == null ? '' : 'AND occurred_at >= ? '}'
+        'AND $kHourExpr IN ($inHours) '
+        'GROUP BY category_id ORDER BY c DESC LIMIT $limit',
+        <Object>[
+          kind,
+          if (since != null) since,
+          ...hours,
+        ],
       );
-      if (rows.isNotEmpty) {
-        categoryId = (rows.first['v'] as num?)?.toInt();
-      }
-    }
-    if (accountId == null) {
-      final List<Map<String, Object?>> rows = await db.rawQuery(
-        'SELECT account_id AS v, COUNT(*) AS c FROM txns '
-        'WHERE deleted_at IS NULL GROUP BY account_id ORDER BY c DESC LIMIT 1',
-      );
-      if (rows.isNotEmpty) {
-        accountId = (rows.first['v'] as num?)?.toInt();
-      }
+      return <int>[
+        for (final Map<String, Object?> r in rows)
+          if ((r['v'] as num?) != null) (r['v']! as num).toInt(),
+      ];
     }
 
-    return TxnSuggestion(categoryId: categoryId, accountId: accountId);
+    List<int> ids = await run(toUtcMs(when.subtract(const Duration(days: 90))));
+    if (ids.isEmpty) ids = await run(null);
+    return ids;
+  }
+
+  /// 只在 [childIds] 里挑：这个点最常用的二级分类（早餐/午餐/零食…）。
+  Future<List<int>> rankedChildrenAtHour(
+    DateTime when,
+    List<int> childIds, {
+    int limit = 4,
+  }) async {
+    if (childIds.isEmpty) return const <int>[];
+    final List<int> hours = hourWindow(when.hour);
+    final String inHours = hours.map((int _) => '?').join(', ');
+    final String inIds = childIds.map((int _) => '?').join(', ');
+    final List<Map<String, Object?>> rows = await db.rawQuery(
+      'SELECT category_id AS v, COUNT(*) AS c FROM txns '
+      "WHERE deleted_at IS NULL AND kind = 'expense' AND category_id IS NOT NULL "
+      'AND occurred_at >= ? AND $kHourExpr IN ($inHours) '
+      'AND category_id IN ($inIds) '
+      'GROUP BY category_id ORDER BY c DESC LIMIT $limit',
+      <Object>[
+        toUtcMs(when.subtract(const Duration(days: 90))),
+        ...hours,
+        ...childIds,
+      ],
+    );
+    return <int>[
+      for (final Map<String, Object?> r in rows)
+        if ((r['v'] as num?) != null) (r['v']! as num).toInt(),
+    ];
+  }
+
+  /// 这些分类（一级 + 它的子类）平时都用哪个账户付。
+  Future<List<int>> rankedAccountsForCategories(
+    List<int> categoryIds, {
+    int limit = 3,
+  }) async {
+    if (categoryIds.isEmpty) return const <int>[];
+    final String inCats = categoryIds.map((int _) => '?').join(', ');
+    final List<Map<String, Object?>> rows = await db.rawQuery(
+      'SELECT account_id AS v, COUNT(*) AS c FROM txns '
+      "WHERE deleted_at IS NULL AND kind = 'expense' AND account_id IS NOT NULL "
+      'AND category_id IN ($inCats) '
+      'GROUP BY account_id ORDER BY c DESC LIMIT $limit',
+      <Object>[...categoryIds],
+    );
+    return <int>[
+      for (final Map<String, Object?> r in rows)
+        if ((r['v'] as num?) != null) (r['v']! as num).toInt(),
+    ];
+  }
+
+  /// 这个点最常用的账户（不分分类）。
+  Future<List<int>> rankedAccountsAtHour(
+    DateTime when, {
+    int limit = 3,
+  }) async {
+    final List<int> hours = hourWindow(when.hour);
+    final String inHours = hours.map((int _) => '?').join(', ');
+    final List<Map<String, Object?>> rows = await db.rawQuery(
+      'SELECT account_id AS v, COUNT(*) AS c FROM txns '
+      'WHERE deleted_at IS NULL AND account_id IS NOT NULL '
+      'AND occurred_at >= ? AND $kHourExpr IN ($inHours) '
+      'GROUP BY account_id ORDER BY c DESC LIMIT $limit',
+      <Object>[
+        toUtcMs(when.subtract(const Duration(days: 180))),
+        ...hours,
+      ],
+    );
+    return <int>[
+      for (final Map<String, Object?> r in rows)
+        if ((r['v'] as num?) != null) (r['v']! as num).toInt(),
+    ];
+  }
+
+  /// 「当时在干嘛」：这个点最常用的场景标签，至少出现过两次才算数。
+  Future<String?> topSceneAtHour(DateTime when, {int minCount = 2}) async {
+    final List<int> hours = hourWindow(when.hour);
+    final String inHours = hours.map((int _) => '?').join(', ');
+    final List<Map<String, Object?>> rows = await db.rawQuery(
+      'SELECT work_state AS v, COUNT(*) AS c FROM txns '
+      'WHERE deleted_at IS NULL AND work_state IS NOT NULL AND work_state <> '
+      "'' AND $kHourExpr IN ($inHours) "
+      'GROUP BY work_state ORDER BY c DESC LIMIT 2',
+      <Object>[...hours],
+    );
+    if (rows.isEmpty) return null;
+    final int top = (rows.first['c'] as num?)?.toInt() ?? 0;
+    final int second =
+        rows.length > 1 ? ((rows[1]['c'] as num?)?.toInt() ?? 0) : 0;
+    if (!isConfident(top, second, minCount: minCount)) return null;
+    return rows.first['v'] as String?;
+  }
+
+  /// 「商家」这一维：备注/商家对得上历史记录时，跟着历史走。
+  ///
+  /// 先按整条备注完全相等找（一条历史也算数），再退到包含关系（至少两条）。
+  /// 输入太短（不到两个字）就不猜，免得「饭」把全部餐饮都拉过来。
+  Future<List<int>> rankedCategoriesForNote(
+    String text, {
+    String kind = 'expense',
+    int limit = 4,
+  }) async {
+    final String t = text.trim();
+    if (t.length < 2) return const <int>[];
+
+    Future<List<int>> query(String pattern, int minCount) async {
+      final List<Map<String, Object?>> rows = await db.rawQuery(
+        'SELECT category_id AS v, COUNT(*) AS c FROM txns '
+        'WHERE deleted_at IS NULL AND kind = ? AND category_id IS NOT NULL '
+        "AND (IFNULL(note, '') LIKE ? ESCAPE '\\' "
+        "OR IFNULL(merchant, '') LIKE ? ESCAPE '\\') "
+        'GROUP BY category_id ORDER BY c DESC LIMIT $limit',
+        <Object>[kind, pattern, pattern],
+      );
+      return <int>[
+        for (final Map<String, Object?> r in rows)
+          if (((r['c'] as num?)?.toInt() ?? 0) >= minCount &&
+              (r['v'] as num?) != null)
+            (r['v']! as num).toInt(),
+      ];
+    }
+
+    final String escaped = escapeLikePattern(t);
+    final List<int> exact = await query(escaped, 1);
+    if (exact.isNotEmpty) return exact;
+    return query('%$escaped%', 2);
+  }
+
+  /// 记住这一次的选择，下次什么都没猜到时用它兜底。
+  Future<void> rememberRecord({
+    int? categoryId,
+    int? accountId,
+    String? scene,
+  }) async {
+    await setSetting('record_last_category', categoryId?.toString());
+    await setSetting('record_last_account', accountId?.toString());
+    await setSetting('record_last_scene', scene);
+  }
+
+  /// 上一次记账留下的选择。
+  Future<RecordMemory> lastRecord() async {
+    final String? c = await getSetting('record_last_category');
+    final String? a = await getSetting('record_last_account');
+    final String? s = await getSetting('record_last_scene');
+    return RecordMemory(
+      categoryId: int.tryParse(c ?? ''),
+      accountId: int.tryParse(a ?? ''),
+      scene: (s == null || s.isEmpty) ? null : s,
+    );
   }
 
   /// 某个账户最近的流水（含转入的）
